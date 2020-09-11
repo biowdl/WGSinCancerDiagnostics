@@ -1,19 +1,111 @@
 version 1.0
 
-workflow WGSinCancerDiagnostics {
-    # call biowdl QC for normal
-    # call biowdl QC for tumor
+import "gatk-preprocess/gatk-preprocess.wdl" as gatkPreprocess
+import "gatk-variantcalling/single-sample-variantcalling.wdl" as gatkVariantCalling
+import "sample.wdl" as sample
+import "tasks/bwa.wdl" as bwa
+import "tasks/chunked-scatter.wdl" as chunkedScatter
+import "tasks/sage.wdl" as sage
 
-    # call bwa-mem for normal
-    # call bwa-mem for tumor
+
+workflow WGSinCancerDiagnostics {
+    input {
+        Array[Readgroup]+ normalReadgroups
+        String normalName
+        Array[Readgroup]+ tumorReadgroups
+        String tumorName
+        BwaIndex bwaIndex
+        File referenceFasta
+        File referenceFastaFai
+        File referenceFastaDict
+        File dbsnpVCF
+        File dbsnpVCFIndex
+        File hotspots
+        File panelBed
+        File highConfidenceBed
+        Boolean hg38
+    }
+
+    call sample.SampleWorkflow as normal {
+        input:
+            readgroups = normalReadgroups,
+            sample = normalName,
+            bwaIndex = bwaIndex
+    }
+
+    call sample.SampleWorkflow as tumor {
+        input:
+            readgroups = tumorReadgroups,
+            sample = tumorName,
+            bwaIndex = bwaIndex
+    }
+
+    call chunkedScatter.ScatterRegions as scatterList {
+        input:
+            inputFile = referenceFastaFai
+        }
 
     # germline calling on normal sample
-        # GATK preprocess
-        # GATK variantcalling (without joint genotyping)
+    call gatkPreprocess.GatkPreprocess as preprocess {
+        input:
+            bam = normal.bam,
+            bamIndex = normal.bamIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            dbsnpVCF = dbsnpVCF,
+            dbsnpVCFIndex = dbsnpVCFIndex,
+            scatters = scatterList.scatters
+    }
+
+    # TODO check if gender aware calling should be perfromed.
+    #call calcRegions.CalculateRegions  as calculateRegions  {}
+
+    call gatkVariantCalling.SingleSampleCalling as germlineVariants {
+        input:
+            bam = preprocess.recalibratedBam,
+            bamIndex = preprocess.recalibratedBamIndex,
+            sampleName = normalName,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            dbsnpVCF = dbsnpVCF,
+            dbsnpVCFIndex = dbsnpVCFIndex,
+            autosomalRegionScatters = scatterList.scatters
+    }
+
 
     # somatic calling on pair
+    call sage.Sage as somaticVariants {
+        input:
+            tumorName = tumorName,
+            tumorBam = tumor.bam,
+            tumorBamIndex = tumor.bamIndex,
+            normalName = normalName,
+            normalBam = normal.bam,
+            normalBamIndex = normal.bamIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            hotspots = hotspots,
+            panelBed = panelBed,
+            highConfidenceBed = highConfidenceBed,
+            hg38 = hg38
+    }
+
         # GRIDSS
-        # SAGE
 
     # gather results and make report
+    output {
+        File somaticVcf = somaticVariants.outputVcf
+        File somaticVcdIndex = somaticVariants.outputVcfIndex
+        File germlineVcf = select_first([germlineVariants.outputVcf])
+        File germlineVcfIndex = select_first([germlineVariants.outputVcfIndex])
+        File normalBam = normal.bam
+        File normalBamIndex = normal.bamIndex
+        File normalPreprocessedBam = preprocess.recalibratedBam
+        File normalPreprocessedBamIndex = preprocess.recalibratedBamIndex
+        File tumorBam = tumor.bam
+        File tumorBamIndex = tumor.bamIndex
+    }
 }
