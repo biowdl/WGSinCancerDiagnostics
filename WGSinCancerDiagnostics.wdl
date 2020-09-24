@@ -5,6 +5,7 @@ import "gatk-variantcalling/single-sample-variantcalling.wdl" as gatkVariantCall
 import "sample.wdl" as sample
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
+import "tasks/gridss.wdl" as gridss
 import "tasks/sage.wdl" as sage
 
 
@@ -93,10 +94,22 @@ workflow WGSinCancerDiagnostics {
             hg38 = hg38
     }
 
-        # GRIDSS
+    # GRIDSS
+    call gridss.GRIDSS as structuralVariants {
+        input:
+            tumorBam = tumor.bam,
+            tumorBai = tumor.bamIndex,
+            tumorLabel = tumorName,
+            normalBam = normal.bam,
+            normalBai = normal.bamIndex,
+            normalLabel = normalName,
+            reference = bwaIndex
+    }
 
     # gather results and make report
     output {
+        File structuralVariantsVcf = structuralVariants.vcf
+        File structuralVariantsVcfIndex = structuralVariants.vcfIndex
         File somaticVcf = somaticVariants.outputVcf
         File somaticVcdIndex = somaticVariants.outputVcfIndex
         File germlineVcf = select_first([germlineVariants.outputVcf])
