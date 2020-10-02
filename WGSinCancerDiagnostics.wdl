@@ -3,10 +3,13 @@ version 1.0
 import "gatk-preprocess/gatk-preprocess.wdl" as gatkPreprocess
 import "gatk-variantcalling/single-sample-variantcalling.wdl" as gatkVariantCalling
 import "sample.wdl" as sample
+import "tasks/bcftools.wdl" as bcftools
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
 import "tasks/gridss.wdl" as gridss
 import "tasks/sage.wdl" as sage
+import "tasks/samtools.wdl" as samtools
+import "tasks/snpeff.wdl" as snpEff
 
 
 workflow WGSinCancerDiagnostics {
@@ -24,6 +27,7 @@ workflow WGSinCancerDiagnostics {
         File hotspots
         File panelBed
         File highConfidenceBed
+        File snpEffDataDirZip
         Boolean hg38
     }
 
@@ -75,6 +79,26 @@ workflow WGSinCancerDiagnostics {
             autosomalRegionScatters = scatterList.scatters
     }
 
+    call snpEff.SnpEff as germlineAnnotation {
+        input:
+            vcf = select_first([germlineVariants.outputVcf]),
+            vcfIndex = select_first([germlineVariants.outputVcfIndex]),
+            genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
+            datadirZip = snpEffDataDirZip,
+            outputPath = "./germline.snpeff.vcf",
+            hgvs = true,
+            lof = true,
+            noDownstream = true,
+            noIntergenic = true,
+            noShiftHgvs = true,
+            upDownStreamLen = 1000
+    }
+
+    call samtools.BgzipAndIndex as germlineCompressed {
+        input:
+            inputFile = germlineAnnotation.outputVcf,
+            outputDir = "."
+    }
 
     # somatic calling on pair
     call sage.Sage as somaticVariants {
@@ -94,6 +118,20 @@ workflow WGSinCancerDiagnostics {
             hg38 = hg38
     }
 
+    call bcftools.Filter as passFilter {
+        input:
+            vcf = somaticVariants.outputVcf,
+            vcfIndex = somaticVariants.outputVcfIndex,
+            include = ["FILTER=\"PASS\""],
+            outputPath = "./sage.pass_filter.vcf.gz"
+    }
+
+    #TODO mappability annotation
+    #TODO PON annotation
+    #TODO PON filter
+    #TODO SNnpEff
+    #TODO sage postprocess
+
     # GRIDSS
     call gridss.GRIDSS as structuralVariants {
         input:
@@ -106,14 +144,27 @@ workflow WGSinCancerDiagnostics {
             reference = bwaIndex
     }
 
-    # gather results and make report
+    #TODO gridss annotation
+    #TODO somatic filter
+
+
+    #TODO? cobalt
+    #TODO? amber
+    #TODO? purple
+    #TODO? chord
+    #TODO? linx
+    #TODO? Bachelor
+    #TODO? HealthChecker
+
+    #TODO gather results and make report
+    
     output {
         File structuralVariantsVcf = structuralVariants.vcf
         File structuralVariantsVcfIndex = structuralVariants.vcfIndex
         File somaticVcf = somaticVariants.outputVcf
         File somaticVcdIndex = somaticVariants.outputVcfIndex
-        File germlineVcf = select_first([germlineVariants.outputVcf])
-        File germlineVcfIndex = select_first([germlineVariants.outputVcfIndex])
+        File germlineVcf = germlineCompressed.compressed
+        File germlineVcfIndex = germlineCompressed.index
         File normalBam = normal.bam
         File normalBamIndex = normal.bamIndex
         File normalPreprocessedBam = preprocess.recalibratedBam
