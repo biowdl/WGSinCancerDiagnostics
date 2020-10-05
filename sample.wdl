@@ -19,6 +19,7 @@ workflow SampleWorkflow {
         BwaIndex bwaIndex
         Boolean hg38
     }
+    meta {allowNestedInputs: true}
 
     scatter (readgroup in readgroups) {
         call qc.QC as QC {
