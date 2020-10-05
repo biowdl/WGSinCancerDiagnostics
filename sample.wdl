@@ -17,6 +17,7 @@ workflow SampleWorkflow {
         String sample
         String platform = "illumina"
         BwaIndex bwaIndex
+        Boolean hg38
     }
 
     scatter (readgroup in readgroups) {
@@ -33,7 +34,7 @@ workflow SampleWorkflow {
                 readgroup = "@RG\\tID:~{sample}-~{readgroup.library}-~{readgroup.id}\\tLB:~{readgroup.library}\\tSM:~{sample}\\tPL:~{platform}",
                 bwaIndex = bwaIndex,
                 threads = 8,
-                usePostalt = true,
+                usePostalt = hg38,
                 outputPrefix = "~{sample}-~{readgroup.library}-~{readgroup.id}"
             }
     }
