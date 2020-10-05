@@ -30,6 +30,7 @@ workflow WGSinCancerDiagnostics {
         File snpEffDataDirZip
         Boolean hg38
     }
+    meta {allowNestedInputs: true}
 
     call sample.SampleWorkflow as normal {
         input:
