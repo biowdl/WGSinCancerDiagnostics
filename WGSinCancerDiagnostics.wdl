@@ -35,14 +35,16 @@ workflow WGSinCancerDiagnostics {
         input:
             readgroups = normalReadgroups,
             sample = normalName,
-            bwaIndex = bwaIndex
+            bwaIndex = bwaIndex,
+            hg38 = hg38
     }
 
     call sample.SampleWorkflow as tumor {
         input:
             readgroups = tumorReadgroups,
             sample = tumorName,
-            bwaIndex = bwaIndex
+            bwaIndex = bwaIndex,
+            hg38 = hg38
     }
 
     call chunkedScatter.ScatterRegions as scatterList {
