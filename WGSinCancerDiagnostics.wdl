@@ -126,21 +126,41 @@ workflow WGSinCancerDiagnostics {
             vcf = somaticVariants.outputVcf,
             vcfIndex = somaticVariants.outputVcfIndex,
             include = "'FILTER=\"PASS\"'",
-            outputPath = "./sage.pass_filter.vcf.gz"
+            outputPath = "./sage.passFilter.vcf.gz"
     }
 
     #TODO mappability annotation
 
-    call bcftools.Annotate as PonAnnotation {
+    call bcftools.Annotate as ponAnnotation {
         input:
             annsFile = PON,
             columns = ["PON_COUNT", "PON_MAX"],
             inputFile = passFilter.outputVcf, #FIXME
-            outputPath = "./sage.pass_filter.PonAnnotated.vcf.gz"
+            outputPath = "./sage.passFilter.ponAnnotated.vcf.gz"
     }
 
-    #TODO PON filter
-    #TODO SNnpEff
+    call PonFilter as ponFilter {
+        input:
+            inputVcf = ponAnnotation.outputVcf,
+            inputVcfIndex = ponAnnotation.outputVcfIndex,
+            outputPath = "./sage.passFilter.ponFilter.vcf.gz"
+    }
+
+    call snpEff.SnpEff as somaticAnnotation {
+        input:
+            vcf = ponFilter.outputVcf,
+            vcfIndex = ponFilter.outputVcfIndex,
+            genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
+            datadirZip = snpEffDataDirZip,
+            outputPath = "./sage.passFilter.ponFilter.snpeff.vcf.gz",
+            hgvs = true,
+            lof = true,
+            noDownstream = true,
+            noIntergenic = true,
+            noShiftHgvs = true,
+            upDownStreamLen = 1000
+    }
+
     #TODO sage postprocess
 
     # GRIDSS
