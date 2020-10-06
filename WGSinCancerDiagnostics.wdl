@@ -125,12 +125,20 @@ workflow WGSinCancerDiagnostics {
         input:
             vcf = somaticVariants.outputVcf,
             vcfIndex = somaticVariants.outputVcfIndex,
-            include = ["FILTER=\"PASS\""],
+            include = "'FILTER=\"PASS\"'",
             outputPath = "./sage.pass_filter.vcf.gz"
     }
 
     #TODO mappability annotation
-    #TODO PON annotation
+
+    call bcftools.Annotate as PonAnnotation {
+        input:
+            annsFile = PON,
+            columns = ["PON_COUNT", "PON_MAX"],
+            inputFile = passFilter.outputVcf, #FIXME
+            outputPath = "./sage.pass_filter.PonAnnotated.vcf.gz"
+    }
+
     #TODO PON filter
     #TODO SNnpEff
     #TODO sage postprocess
@@ -164,8 +172,8 @@ workflow WGSinCancerDiagnostics {
     output {
         File structuralVariantsVcf = structuralVariants.vcf
         File structuralVariantsVcfIndex = structuralVariants.vcfIndex
-        File somaticVcf = somaticVariants.outputVcf
-        File somaticVcdIndex = somaticVariants.outputVcfIndex
+        File somaticVcf = somaticVariants.outputVcf #FIXME
+        File somaticVcdIndex = somaticVariants.outputVcfIndex #FIXME
         File germlineVcf = germlineCompressed.compressed
         File germlineVcfIndex = germlineCompressed.index
         File normalBam = normal.bam
@@ -174,5 +182,62 @@ workflow WGSinCancerDiagnostics {
         File normalPreprocessedBamIndex = preprocess.recalibratedBamIndex
         File tumorBam = tumor.bam
         File tumorBamIndex = tumor.bamIndex
+    }
+}
+
+task PonFilter {
+    input {
+        File inputVcf
+        File inputVcfIndex
+        String  outputPath
+
+        String memory = "1G"
+        Int timeMinutes = 2 + ceil(size(vcf, "G"))
+        String dockerImage = "quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2"
+    }
+
+    command {
+        set -eo pipefail
+        bcftools \
+	        filter \
+	        -e 'PON_COUNT!="." && INFO/TIER="HOTSPOT" && PON_MAX>=5 && PON_COUNT >= 10' \
+	        -s PON \
+	        -m+ \
+	        ~{inputVcf} \
+	        -O u | \
+	    bcftools \
+	        filter \
+    	    -e 'PON_COUNT!="." && INFO/TIER="PANEL" && PON_MAX>=5 && PON_COUNT >= 6' \
+	        -s PON \
+	        -m+ \
+	        -O u | \
+	    bcftools \
+	        filter \
+	        -e 'PON_COUNT!="." && INFO/TIER!="HOTSPOT" && INFO/TIER!="PANEL" && PON_COUNT >= 6' \
+	        -s PON \
+	        -m+ \
+	        -O z \
+	        -o ~{outputPath}
+        bctools index --tbi ~{outputPath}
+    }
+
+    output {
+        File outputVcf = outputPath
+        File outputVcfIndex outputPath + ".tbi"
+    }
+
+    runtime {
+        memory: memory
+        docker: dockerImage
+        time_minutes: timeMinutes
+    }
+
+    parameter_meta {
+        inputVcf: {description: "The input VCF file.", category: "required"}
+        inputVcfIndex: {description: "The index for the VCF file.", category: "required"}
+        outputPath: {description: "The path to write the output to.", category: "common"}
+        dockerImage: {description: "The docker image used for this task. Changing this may result in errors which the developers may choose not to address.", category: "advanced"}
+        memory: {description: "The amount of memory this job will use.", category: "advanced"}
+        timeMinutes: {description: "The maximum amount of time the job will run in minutes.", category: "advanced"}
     }
 }
