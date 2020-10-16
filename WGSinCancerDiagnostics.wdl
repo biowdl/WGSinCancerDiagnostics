@@ -7,6 +7,7 @@ import "tasks/bcftools.wdl" as bcftools
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
 import "tasks/gridss.wdl" as gridss
+import "tasks/gripss.wdl" as gripss
 import "tasks/sage.wdl" as sage
 import "tasks/samtools.wdl" as samtools
 import "tasks/snpeff.wdl" as snpEff
@@ -161,8 +162,6 @@ workflow WGSinCancerDiagnostics {
             upDownStreamLen = 1000
     }
 
-    #TODO sage postprocess
-
     # GRIDSS
     call gridss.GRIDSS as structuralVariants {
         input:
@@ -176,7 +175,20 @@ workflow WGSinCancerDiagnostics {
     }
 
     #TODO gridss annotation
-    #TODO somatic filter
+
+    call gripss.ApplicationKt as gripss {
+        input:
+            inputVcf = structuralVariants.vcf, #FIXME
+            referenceFasta = referenceFasta
+            breakpointHotspot = breakpointHotspot,
+            breakendPon = breakendPon,
+            breakpointPon = breakpointPon
+    }
+
+    call gripps.HardFilterApplicationKt as gripssFilter {
+        input:
+            inputVcf = gripss.outputVcf
+    }
 
 
     #TODO? cobalt
@@ -190,8 +202,8 @@ workflow WGSinCancerDiagnostics {
     #TODO gather results and make report
     
     output {
-        File structuralVariantsVcf = structuralVariants.vcf
-        File structuralVariantsVcfIndex = structuralVariants.vcfIndex
+        File structuralVariantsVcf = structuralVariants.vcf #FIXME
+        File structuralVariantsVcfIndex = structuralVariants.vcfIndex #FIXME
         File somaticVcf = somaticVariants.outputVcf #FIXME
         File somaticVcdIndex = somaticVariants.outputVcfIndex #FIXME
         File germlineVcf = germlineCompressed.compressed
