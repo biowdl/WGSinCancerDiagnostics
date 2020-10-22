@@ -7,7 +7,7 @@ import "tasks/bcftools.wdl" as bcftools
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
 import "tasks/gridss.wdl" as gridss
-import "tasks/gripss.wdl" as gripss
+import "tasks/gripss.wdl" as gripssTasks
 import "tasks/sage.wdl" as sage
 import "tasks/samtools.wdl" as samtools
 import "tasks/snpeff.wdl" as snpEff
@@ -30,6 +30,10 @@ workflow WGSinCancerDiagnostics {
         File highConfidenceBed
         File snpEffDataDirZip
         File viralReference
+        File breakpointHotspot
+        File breakendPon
+        File breakpointPon
+        File PON
         Boolean hg38
     }
     meta {allowNestedInputs: true}
@@ -144,7 +148,7 @@ workflow WGSinCancerDiagnostics {
     call PonFilter as ponFilter {
         input:
             inputVcf = ponAnnotation.outputVcf,
-            inputVcfIndex = ponAnnotation.outputVcfIndex,
+            inputVcfIndex = select_first([ponAnnotation.outputVcfIndex]),
             outputPath = "./sage.passFilter.ponFilter.vcf.gz"
     }
 
@@ -181,16 +185,16 @@ workflow WGSinCancerDiagnostics {
             viralReference = viralReference
     }
 
-    call gripss.ApplicationKt as gripss {
+    call gripssTasks.ApplicationKt as gripss {
         input:
             inputVcf = viralAnnotation.outputVcf,
-            referenceFasta = referenceFasta
+            referenceFasta = referenceFasta,
             breakpointHotspot = breakpointHotspot,
             breakendPon = breakendPon,
             breakpointPon = breakpointPon
     }
 
-    call gripps.HardFilterApplicationKt as gripssFilter {
+    call gripssTasks.HardFilterApplicationKt as gripssFilter {
         input:
             inputVcf = gripss.outputVcf
     }
@@ -229,44 +233,44 @@ task PonFilter {
         String  outputPath
 
         String memory = "1G"
-        Int timeMinutes = 2 + ceil(size(vcf, "G"))
+        Int timeMinutes = 2 + ceil(size(inputVcf, "G"))
         String dockerImage = "quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2"
     }
 
     command {
         set -eo pipefail
         bcftools \
-	        filter \
-	        -e 'PON_COUNT!="." && INFO/TIER="HOTSPOT" && PON_MAX>=5 && PON_COUNT >= 10' \
-	        -s PON \
-	        -m+ \
-	        ~{inputVcf} \
-	        -O u | \
-	    bcftools \
-	        filter \
-    	    -e 'PON_COUNT!="." && INFO/TIER="PANEL" && PON_MAX>=5 && PON_COUNT >= 6' \
-	        -s PON \
-	        -m+ \
-	        -O u | \
-	    bcftools \
-	        filter \
-	        -e 'PON_COUNT!="." && INFO/TIER!="HOTSPOT" && INFO/TIER!="PANEL" && PON_COUNT >= 6' \
-	        -s PON \
-	        -m+ \
-	        -O z \
-	        -o ~{outputPath}
+            filter \
+            -e 'PON_COUNT!="." && INFO/TIER="HOTSPOT" && PON_MAX>=5 && PON_COUNT >= 10' \
+            -s PON \
+            -m+ \
+            ~{inputVcf} \
+            -O u | \
+        bcftools \
+            filter \
+            -e 'PON_COUNT!="." && INFO/TIER="PANEL" && PON_MAX>=5 && PON_COUNT >= 6' \
+            -s PON \
+            -m+ \
+            -O u | \
+        bcftools \
+            filter \
+            -e 'PON_COUNT!="." && INFO/TIER!="HOTSPOT" && INFO/TIER!="PANEL" && PON_COUNT >= 6' \
+            -s PON \
+            -m+ \
+            -O z \
+            -o ~{outputPath}
         bctools index --tbi ~{outputPath}
     }
 
     output {
         File outputVcf = outputPath
-        File outputVcfIndex outputPath + ".tbi"
+        File outputVcfIndex = outputPath + ".tbi"
     }
 
     runtime {
         memory: memory
         docker: dockerImage
-        time_minutes: timeMinutes
+        time_minutes: timeMinutes # !UnknownRuntimeKey
     }
 
     parameter_meta {
