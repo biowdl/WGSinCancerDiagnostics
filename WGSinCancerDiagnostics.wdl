@@ -29,6 +29,7 @@ workflow WGSinCancerDiagnostics {
         File panelBed
         File highConfidenceBed
         File snpEffDataDirZip
+        File viralReference
         Boolean hg38
     }
     meta {allowNestedInputs: true}
@@ -174,11 +175,15 @@ workflow WGSinCancerDiagnostics {
             reference = bwaIndex
     }
 
-    #TODO gridss annotation
+    call gridss.AnnotateInsertedSequence as viralAnnotation {
+        input:
+            inputVcf = structuralVariants.vcf,
+            viralReference = viralReference
+    }
 
     call gripss.ApplicationKt as gripss {
         input:
-            inputVcf = structuralVariants.vcf, #FIXME
+            inputVcf = viralAnnotation.outputVcf,
             referenceFasta = referenceFasta
             breakpointHotspot = breakpointHotspot,
             breakendPon = breakendPon,
