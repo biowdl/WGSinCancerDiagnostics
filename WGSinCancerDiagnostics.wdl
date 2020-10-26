@@ -186,13 +186,18 @@ workflow WGSinCancerDiagnostics {
             vcfIndex = ponFilter.outputVcfIndex,
             genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
             datadirZip = snpEffDataDirZip,
-            outputPath = "./sage.passFilter.ponFilter.snpeff.vcf.gz",
+            outputPath = "./sage.passFilter.ponFilter.snpeff.vcf",
             hgvs = true,
             lof = true,
             noDownstream = true,
             noIntergenic = true,
             noShiftHgvs = true,
             upDownStreamLen = 1000
+    }
+
+    call BgzipAndIndex as somaticCompressed {
+        inputFile = somaticAnnotation.outputVcf,
+        outputDir = "."
     }
 
     # GRIDSS
@@ -244,10 +249,10 @@ workflow WGSinCancerDiagnostics {
     #TODO gather results and make report
     
     output {
-        File structuralVariantsVcf = structuralVariants.vcf #FIXME
-        File structuralVariantsVcfIndex = structuralVariants.vcfIndex #FIXME
-        File somaticVcf = somaticVariants.outputVcf #FIXME
-        File somaticVcdIndex = somaticVariants.outputVcfIndex #FIXME
+        File structuralVariantsVcf = gripssFilter.outputVcf
+        File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
+        File somaticVcf = somaticCompressed.compressed
+        File somaticVcfIndex = somaticCompressed.index
         File germlineVcf = germlineCompressed.compressed
         File germlineVcfIndex = germlineCompressed.index
         File normalBam = normal.bam
