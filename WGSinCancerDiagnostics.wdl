@@ -59,6 +59,7 @@ workflow WGSinCancerDiagnostics {
         File breakendPon
         File breakpointPon
         File PON
+        File PONindex
         Boolean hg38
     }
     meta {allowNestedInputs: true}
@@ -165,6 +166,7 @@ workflow WGSinCancerDiagnostics {
     call bcftools.Annotate as ponAnnotation {
         input:
             annsFile = PON,
+            annsFileIndex = PONindex
             columns = ["PON_COUNT", "PON_MAX"],
             inputFile = passFilter.outputVcf, #FIXME
             inputFileIndex = passFilter.outputVcfIndex,
