@@ -167,7 +167,7 @@ workflow WGSinCancerDiagnostics {
             annsFile = PON,
             columns = ["PON_COUNT", "PON_MAX"],
             inputFile = passFilter.outputVcf, #FIXME
-            inputFileIndex = select_first([passFilter.outputVcfIndex]),
+            inputFileIndex = passFilter.outputVcfIndex,
             outputPath = "./sage.passFilter.ponAnnotated.vcf.gz"
     }
 
