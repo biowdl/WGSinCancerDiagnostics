@@ -166,7 +166,7 @@ workflow WGSinCancerDiagnostics {
     call bcftools.Annotate as ponAnnotation {
         input:
             annsFile = PON,
-            annsFileIndex = PONindex
+            annsFileIndex = PONindex,
             columns = ["PON_COUNT", "PON_MAX"],
             inputFile = passFilter.outputVcf, #FIXME
             inputFileIndex = passFilter.outputVcfIndex,
