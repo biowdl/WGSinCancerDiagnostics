@@ -220,6 +220,8 @@ workflow WGSinCancerDiagnostics {
         input:
             inputVcf = viralAnnotation.outputVcf,
             referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
             breakpointHotspot = breakpointHotspot,
             breakendPon = breakendPon,
             breakpointPon = breakpointPon
@@ -290,7 +292,7 @@ task PonFilter {
             -m+ \
             -O z \
             -o ~{outputPath}
-        bctools index --tbi ~{outputPath}
+        bcftools index --tbi ~{outputPath}
     }
 
     output {
