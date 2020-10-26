@@ -30,6 +30,8 @@ workflow WGSinCancerDiagnostics {
         File highConfidenceBed
         File snpEffDataDirZip
         File viralReference
+        File viralReferenceFai
+        File viralReferenceDict
         File breakpointHotspot
         File breakendPon
         File breakpointPon
@@ -182,7 +184,9 @@ workflow WGSinCancerDiagnostics {
     call gridss.AnnotateInsertedSequence as viralAnnotation {
         input:
             inputVcf = structuralVariants.vcf,
-            viralReference = viralReference
+            viralReference = viralReference,
+            viralReferenceFai = viralReferenceFai,
+            viralReferenceDict = viralReferenceDict
     }
 
     call gripssTasks.ApplicationKt as gripss {
