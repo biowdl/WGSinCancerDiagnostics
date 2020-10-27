@@ -196,8 +196,9 @@ workflow WGSinCancerDiagnostics {
     }
 
     call BgzipAndIndex as somaticCompressed {
-        inputFile = somaticAnnotation.outputVcf,
-        outputDir = "."
+        input:
+            inputFile = somaticAnnotation.outputVcf,
+            outputDir = "."
     }
 
     # GRIDSS
