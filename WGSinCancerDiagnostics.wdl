@@ -195,7 +195,7 @@ workflow WGSinCancerDiagnostics {
             upDownStreamLen = 1000
     }
 
-    call BgzipAndIndex as somaticCompressed {
+    call samtools.BgzipAndIndex as somaticCompressed {
         input:
             inputFile = somaticAnnotation.outputVcf,
             outputDir = "."
