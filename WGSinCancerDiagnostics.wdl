@@ -29,8 +29,7 @@ import "tasks/bcftools.wdl" as bcftools
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
 import "tasks/gridss.wdl" as gridss
-import "tasks/gripss.wdl" as gripssTasks
-import "tasks/sage.wdl" as sage
+import "tasks/hmftools.wdl" as hmftools
 import "tasks/samtools.wdl" as samtools
 import "tasks/snpeff.wdl" as snpEff
 
@@ -45,6 +44,7 @@ workflow WGSinCancerDiagnostics {
         File referenceFasta
         File referenceFastaFai
         File referenceFastaDict
+        Boolean hg38
         File dbsnpVCF
         File dbsnpVCFIndex
         File hotspots
@@ -60,7 +60,7 @@ workflow WGSinCancerDiagnostics {
         File breakpointPon
         File PON
         File PONindex
-        Boolean hg38
+        File gcProfile
     }
     meta {allowNestedInputs: true}
 
@@ -136,7 +136,7 @@ workflow WGSinCancerDiagnostics {
     }
 
     # somatic calling on pair
-    call sage.Sage as somaticVariants {
+    call hmftools.Sage as somaticVariants {
         input:
             tumorName = tumorName,
             tumorBam = tumor.bam,
@@ -222,7 +222,7 @@ workflow WGSinCancerDiagnostics {
             viralReferenceImg = viralReferenceImg
     }
 
-    call gripssTasks.ApplicationKt as gripss {
+    call hmftools.GripssApplicationKt as gripss {
         input:
             inputVcf = viralAnnotation.outputVcf,
             referenceFasta = referenceFasta,
@@ -233,14 +233,36 @@ workflow WGSinCancerDiagnostics {
             breakpointPon = breakpointPon
     }
 
-    call gripssTasks.HardFilterApplicationKt as gripssFilter {
+    call hmftools.GripssHardFilterApplicationKt as gripssFilter {
         input:
             inputVcf = gripss.outputVcf
     }
 
+    call hmftools.Amber as amber {
+        input:
+            normalName = normalName,
+            normalBam = normal.bam,
+            normalBamIndex = normal.bamIndex,
+            tumorName = tumorName,
+            tumorBam = tumor.bam,
+            tumorBamIndex = tumor.bamIndex,
+            loci = likelyHeterozygousLoci,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict
+    }
 
-    #TODO? cobalt
-    #TODO? amber
+    call hmftools.Cobalt as cobalt {
+        input:
+            normalName = normalName,
+            normalBam = normal.bam,
+            normalBamIndex = normal.bamIndex,
+            tumorName = tumorName,
+            tumorBam = tumor.bam,
+            tumorBamIndex = tumor.bamIndex,
+            gcProfile = gcProfile
+    }
+
     #TODO? purple
     #TODO? chord
     #TODO? linx
@@ -262,6 +284,9 @@ workflow WGSinCancerDiagnostics {
         File normalPreprocessedBamIndex = preprocess.recalibratedBamIndex
         File tumorBam = tumor.bam
         File tumorBamIndex = tumor.bamIndex
+        Array[File] cobaltOutput = cobalt.outputs
+        Array[File] amberOutput = amber.outputs
+        
     }
 }
 
