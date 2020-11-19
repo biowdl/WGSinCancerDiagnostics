@@ -263,7 +263,22 @@ workflow WGSinCancerDiagnostics {
             gcProfile = gcProfile
     }
 
-    #TODO? purple
+    call hmftools.Purple as purple {
+        input:
+            normalName = normalName,
+            tumorName = tumorName,
+            amberOutput = amber.outputs,
+            cobaltOutput = cobalt.outputs,
+            gcProfile = gcProfile,
+            somaticVcf = somaticAnnotation.outputVcf,
+            filteredSvVcf = gripssFilter.outputVcf,
+            fullSvVcf = structuralVariants.vcf,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            hotspots = hotspots
+    }
+
     #TODO? chord
     #TODO? linx
     #TODO? Bachelor
@@ -286,7 +301,7 @@ workflow WGSinCancerDiagnostics {
         File tumorBamIndex = tumor.bamIndex
         Array[File] cobaltOutput = cobalt.outputs
         Array[File] amberOutput = amber.outputs
-        
+        #TODO purple
     }
 }
 
