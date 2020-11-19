@@ -60,6 +60,7 @@ workflow WGSinCancerDiagnostics {
         File breakpointPon
         File PON
         File PONindex
+        File likelyHeterozygousLoci
         File gcProfile
     }
     meta {allowNestedInputs: true}
