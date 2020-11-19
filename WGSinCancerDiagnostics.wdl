@@ -277,6 +277,7 @@ workflow WGSinCancerDiagnostics {
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
+            driverGenePanel = panelBed,
             hotspots = hotspots
     }
 
