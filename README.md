@@ -1,9 +1,11 @@
 # WGSinCancerDiagnostics
 
-This repository contains the [Biowdl](https://github.com/biowdl) 
+This repository contains the [BioWDL](https://github.com/biowdl) 
 pipeline for WGS based cancer diagnostics. This pipeline will
 performs QC (including adapter clipping), mapping and both germline and
-somatic variant-calling.
+somatic variant-calling. This pipeline is largely a reimplementation of the 
+[Hartwig Medical Foundation](https://www.hartwigmedicalfoundation.nl)'s
+[pipeline5](https://github.com/hartwigmedical/pipeline5).
 
 ## Documentation
 You can find the documentation [here](https://biowdl.github.io/WGSinCancerDiagnostics).
