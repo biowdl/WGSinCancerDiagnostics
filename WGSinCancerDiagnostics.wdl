@@ -78,6 +78,9 @@ workflow WGSinCancerDiagnostics {
             readgroups = tumorReadgroups,
             sample = tumorName,
             bwaIndex = bwaIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaDict = referenceFastaDict,
+            referenceFastaFai = referenceFastaFai,
             hg38 = hg38
     }
 
@@ -281,10 +284,10 @@ workflow WGSinCancerDiagnostics {
             hotspots = hotspots
     }
 
-    #TODO? chord
+    #TODO? HealthChecker
     #TODO? linx
     #TODO? Bachelor
-    #TODO? HealthChecker
+    #TODO? chord
 
     #TODO gather results and make report
     

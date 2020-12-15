@@ -24,6 +24,7 @@ version 1.0
 
 import "QC/QC.wdl" as qc
 import "tasks/bwa.wdl" as bwa
+import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
 
 struct Readgroup {
@@ -39,6 +40,9 @@ workflow SampleWorkflow {
         String sample
         String platform = "illumina"
         BwaIndex bwaIndex
+        File referenceFasta
+        File referenceFastaFai
+        File referenceFastaDict
         Boolean hg38
     }
     meta {allowNestedInputs: true}
@@ -68,8 +72,22 @@ workflow SampleWorkflow {
             outputPath = "~{sample}.markdup.bam"
     }
 
+    call picard.CollectWgsMetrics as collectMetrics {
+        input: 
+            inputBam = markdup.outputBam,
+            inputBamIndex = markdup.outputBamIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaDict = referenceFastaDict,
+            referenceFastaFai = referenceFastaFai,
+            outputPath = "./~{sample}.wgs_metrics.txt",
+            minimumMappingQuality = 20,
+            minimumBaseQuality = 10,
+            coverageCap = 250
+    }
+
     output {
         File bam = markdup.outputBam
         File bamIndex = markdup.outputBamIndex
+        File metrics = collectMetrics.metrics
     }
 }
