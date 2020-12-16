@@ -62,6 +62,7 @@ workflow WGSinCancerDiagnostics {
         File PONindex
         File likelyHeterozygousLoci
         File gcProfile
+        File panelTsv
     }
     meta {allowNestedInputs: true}
 
@@ -277,20 +278,20 @@ workflow WGSinCancerDiagnostics {
             somaticVcf = somaticAnnotation.outputVcf,
             filteredSvVcf = gripssFilter.outputVcf,
             fullSvVcf = structuralVariants.vcf,
+            fullSvVcfIndex = structuralVariants.vcfIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
-            driverGenePanel = panelBed,
+            driverGenePanel = panelTsv,
             hotspots = hotspots
     }
 
-    #TODO? HealthChecker
-    #TODO? linx
-    #TODO? Bachelor
-    #TODO? chord
-
-    #TODO gather results and make report
     
+    #TODO? linx
+    #TODO? chord
+    #TODO? HealthChecker
+    #TODO? ~Bachelor~ Update purple and sage versions instead
+
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
         File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
@@ -306,7 +307,8 @@ workflow WGSinCancerDiagnostics {
         File tumorBamIndex = tumor.bamIndex
         Array[File] cobaltOutput = cobalt.outputs
         Array[File] amberOutput = amber.outputs
-        #TODO purple
+        Array[File] purpleOutput = purple.outputs
+        Array[File] purplePlots = purple.plots
     }
 }
 
