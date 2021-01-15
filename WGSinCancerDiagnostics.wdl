@@ -63,6 +63,11 @@ workflow WGSinCancerDiagnostics {
         File likelyHeterozygousLoci
         File gcProfile
         File panelTsv
+        File mappabilityBed
+        File mappabilityHdr
+        #File germlineCoveragePanel
+        #File germlineHotspots
+        #File germlineCodingPanel
     }
     meta {allowNestedInputs: true}
 
@@ -140,6 +145,58 @@ workflow WGSinCancerDiagnostics {
             outputDir = "."
     }
 
+    #FIXME uncomment once germline hotspots, coverage panel, blacklist etc. are available
+    # call hmftools.Sage as germlineSage {
+    #     # use tumor as normal and normal as tumor
+    #     input:
+    #         tumorName = normalName,
+    #         tumorBam = normal.bam,
+    #         tumorBamIndex = normal.bamIndex,
+    #         normalName = tumorName,
+    #         normalBam = tumor.bam,
+    #         normalBamIndex = tumor.bamIndex,
+    #         referenceFasta = referenceFasta,
+    #         referenceFastaFai = referenceFastaFai,
+    #         referenceFastaDict = referenceFastaDict,
+    #         hotspots = germlineHotspots,
+    #         panelBed = germlineCodingPanel,
+    #         highConfidenceBed = highConfidenceBed,
+    #         hg38 = hg38,
+    #         outputPath = "./germlineSage.vcf.gz",
+    #         hotspotMinTumorQual = 50,
+    #         panelMinTumorQual = 75,
+    #         hotspotMaxGermlineVaf = 100,
+    #         hotspotMaxGermlineRelRawBaseQual = 100,
+    #         panelMaxGermlineVaf = 100,
+    #         panelMaxGermlineRelRawBaseQual = 100,
+    #         mnvFilterEnabled = "false",
+    #         coverageBed = germlineCoveragePanel,
+    #         panelOnly = true
+    # }
+    #
+    # call bcftools.Filter as germlinePassFilter {
+    #     input:
+    #         vcf = germlineSage.outputVcf,
+    #         vcfIndex = germlineSage.outputVcfIndex,
+    #         include = "'FILTER=\"PASS\"'",
+    #         outputPath = "./germlineSage.passFilter.vcf.gz"
+    # }
+    #
+    # call bcftools.Annotate as germlineMappabilityAnnotation {
+    #     input:
+    #         annsFile = mappabilityBed,
+    #         columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
+    #         headerLines = mappabilityHdr,
+    #         inputFile = germlinePassFilter.outputVcf,
+    #         inputFileIndex = germlinePassFilter.outputVcfIndex,
+    #         outputPath = "./germlineSage.passFilter.mappabilityAnnotated.vcf.gz"
+    # }
+
+    #TODO -> clinvar -> blacklistBed -> blacklistVcf -> snpeff -> purple
+    # bcftools annotate -a clinvar.vcf -c INFO/CLNSIG,INFO/CLNSIGCONF
+    # bcftools annotate -a blacklist.bed -m BLACKLIST_BED -c CHROM,FROM,TO
+    # bcftools annotate -a blacklist.vcf -m BLACKLIST_VCF
+
     # somatic calling on pair
     call hmftools.Sage as somaticVariants {
         input:
@@ -166,23 +223,31 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./sage.passFilter.vcf.gz"
     }
 
-    #TODO mappability annotation
+    call bcftools.Annotate as mappabilityAnnotation {
+        input:
+            annsFile = mappabilityBed,
+            columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
+            headerLines = mappabilityHdr,
+            inputFile = passFilter.outputVcf,
+            inputFileIndex = passFilter.outputVcfIndex,
+            outputPath = "./sage.passFilter.mappabilityAnnotated.vcf.gz"
+    }
 
     call bcftools.Annotate as ponAnnotation {
         input:
             annsFile = PON,
             annsFileIndex = PONindex,
             columns = ["PON_COUNT", "PON_MAX"],
-            inputFile = passFilter.outputVcf, #FIXME
-            inputFileIndex = passFilter.outputVcfIndex,
-            outputPath = "./sage.passFilter.ponAnnotated.vcf.gz"
+            inputFile = mappabilityAnnotation.outputVcf,
+            inputFileIndex = mappabilityAnnotation.outputVcfIndex,
+            outputPath = "./sage.passFilter.mappabilityAnnotated.ponAnnotated.vcf.gz"
     }
 
     call PonFilter as ponFilter {
         input:
             inputVcf = ponAnnotation.outputVcf,
             inputVcfIndex = select_first([ponAnnotation.outputVcfIndex]),
-            outputPath = "./sage.passFilter.ponFilter.vcf.gz"
+            outputPath = "./sage.passFilter.mappabilityAnnotated.ponFilter.vcf.gz"
     }
 
     call snpEff.SnpEff as somaticAnnotation {
@@ -191,7 +256,7 @@ workflow WGSinCancerDiagnostics {
             vcfIndex = ponFilter.outputVcfIndex,
             genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
             datadirZip = snpEffDataDirZip,
-            outputPath = "./sage.passFilter.ponFilter.snpeff.vcf",
+            outputPath = "./sage.passFilter.mappabilityAnnotated.ponFilter.snpeff.vcf",
             hgvs = true,
             lof = true,
             noDownstream = true,
@@ -284,13 +349,33 @@ workflow WGSinCancerDiagnostics {
             referenceFastaDict = referenceFastaDict,
             driverGenePanel = panelTsv,
             hotspots = hotspots
+            # TODO provide germineline vcf
     }
 
-    
-    #TODO? linx
-    #TODO? chord
-    #TODO? HealthChecker
-    #TODO? ~Bachelor~ Update purple and sage versions instead
+    call hmftools.Linx as linx {
+            sampleName = tumorName,
+            svVcf = gripssFilter.outputVcf,
+            svVcfIndex = gripssFilter.outputVcfIndex,
+            purpleOutput = purple.outputs,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            refGenomeVersion = if hg38 then "HG38" else "HG19",
+            fragileSiteCsv = fragileSiteCsv,
+            lineElementCsv = lineElementCsv,
+            replicationOriginsBed = replicationOriginsBed,
+            viralHostsCsv = viralHostsCsv,
+            knownFusionCsv = knownFusionCsv,
+            driverGenePanel = driverGenePanel,
+            geneDataCsv = geneDataCsv,
+            proteinFeaturesCsv = proteinFeaturesCsv,
+            transExonDataCsv = transExonDataCsv,
+            transSpliceDataCsv = transSpliceDataCsv
+    }
+
+    #TODO chord
+    #TODO HealthChecker
+    #TODO update tool version (sage, purple)
 
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
