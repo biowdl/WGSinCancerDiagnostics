@@ -65,6 +65,15 @@ workflow WGSinCancerDiagnostics {
         File panelTsv
         File mappabilityBed
         File mappabilityHdr
+        File fragileSiteCsv
+        File lineElementCsv
+        File replicationOriginsBed 
+        File viralHostsCsv
+        File knownFusionCsv
+        File geneDataCsv
+        File proteinFeaturesCsv
+        File transExonDataCsv
+        File transSpliceDataCsv
         #File germlineCoveragePanel
         #File germlineHotspots
         #File germlineCodingPanel
@@ -353,6 +362,7 @@ workflow WGSinCancerDiagnostics {
     }
 
     call hmftools.Linx as linx {
+        input:
             sampleName = tumorName,
             svVcf = gripssFilter.outputVcf,
             svVcfIndex = gripssFilter.outputVcfIndex,
@@ -366,7 +376,7 @@ workflow WGSinCancerDiagnostics {
             replicationOriginsBed = replicationOriginsBed,
             viralHostsCsv = viralHostsCsv,
             knownFusionCsv = knownFusionCsv,
-            driverGenePanel = driverGenePanel,
+            driverGenePanel = panelTsv,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
