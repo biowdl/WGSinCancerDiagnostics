@@ -85,9 +85,16 @@ workflow SampleWorkflow {
             coverageCap = 250
     }
 
+    call sambamba.Flagstat as flagstat {
+        input:
+            inputBam = markdup.outputBam,
+            inputBamIndex = markdup.outputBamIndex
+    }
+
     output {
         File bam = markdup.outputBam
         File bamIndex = markdup.outputBamIndex
         File metrics = collectMetrics.metrics
+        File flagstats = flagstat.stats
     }
 }

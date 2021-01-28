@@ -28,6 +28,7 @@ import "sample.wdl" as sample
 import "tasks/bcftools.wdl" as bcftools
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
+import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
 import "tasks/samtools.wdl" as samtools
@@ -85,6 +86,9 @@ workflow WGSinCancerDiagnostics {
             readgroups = normalReadgroups,
             sample = normalName,
             bwaIndex = bwaIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaDict = referenceFastaDict,
+            referenceFastaFai = referenceFastaFai,
             hg38 = hg38
     }
 
@@ -116,9 +120,6 @@ workflow WGSinCancerDiagnostics {
             dbsnpVCFIndex = dbsnpVCFIndex,
             scatters = scatterList.scatters
     }
-
-    # TODO check if gender aware calling should be perfromed.
-    #call calcRegions.CalculateRegions  as calculateRegions  {}
 
     call gatkVariantCalling.SingleSampleCalling as germlineVariants {
         input:
@@ -383,7 +384,15 @@ workflow WGSinCancerDiagnostics {
             transSpliceDataCsv = transSpliceDataCsv
     }
 
-    #TODO chord
+    call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
+        input:
+            sampleName = tumorName,
+            snvIndelVcf = somaticCompressed.compressed,
+            snvIndelVcfIndex = somaticCompressed.index,
+            svVcf = gripssFilter.outputVcf,
+            svVcfIndex = gripssFilter.outputVcfIndex
+    }
+
     #TODO HealthChecker
     #TODO update tool version (sage, purple)
 
@@ -404,6 +413,9 @@ workflow WGSinCancerDiagnostics {
         Array[File] amberOutput = amber.outputs
         Array[File] purpleOutput = purple.outputs
         Array[File] purplePlots = purple.plots
+        Array[File] linxOutput = linx.outputs
+        File HRDprediction = sigAndHRD.chordPrediction
+        File signatures = sigAndHRD.chordSignatures
     }
 }
 
