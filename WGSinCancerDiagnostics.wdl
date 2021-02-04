@@ -395,7 +395,7 @@ workflow WGSinCancerDiagnostics {
 
     call hmftools.HealthChecker as healthChecker {
         input:
-            normalName = normalLabel,
+            normalName = normalName,
             normalFlagstats = normal.flagstats,
             normalMetrics = normal.metrics,
             tumorName = tumorName,
