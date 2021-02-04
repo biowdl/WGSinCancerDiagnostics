@@ -393,7 +393,16 @@ workflow WGSinCancerDiagnostics {
             svVcfIndex = gripssFilter.outputVcfIndex
     }
 
-    #TODO HealthChecker
+    call hmftools.HealthChecker as healthChecker {
+        input:
+            normalName = normalLabel,
+            normalFlagstats = normal.flagstats,
+            normalMetrics = normal.metrics,
+            tumorName = tumorName,
+            tumorFlagstats= tumor.flagstats,
+            tumorMetrics = tumor.metrics,
+            purpleOutput = purple.outputs
+    }
     #TODO update tool version (sage, purple)
 
     output {
@@ -416,6 +425,7 @@ workflow WGSinCancerDiagnostics {
         Array[File] linxOutput = linx.outputs
         File HRDprediction = sigAndHRD.chordPrediction
         File signatures = sigAndHRD.chordSignatures
+        File healthChecks = select_first([healthChecker.healthCheckSucceeded, healthChecker.healthCheckFailed])
     }
 }
 
