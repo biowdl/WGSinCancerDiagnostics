@@ -51,7 +51,8 @@ workflow SampleWorkflow {
         call qc.QC as QC {
             input:
                 read1 = readgroup.read1,
-                read2 = readgroup.read2
+                read2 = readgroup.read2,
+                runAdapterClipping = false
         }
 
         call bwa.Mem as bwaMem {
@@ -62,6 +63,7 @@ workflow SampleWorkflow {
                 bwaIndex = bwaIndex,
                 threads = 8,
                 usePostalt = hg38,
+                useSoftclippingForSupplementary = true,
                 outputPrefix = "~{sample}-~{readgroup.library}-~{readgroup.id}"
             }
     }
