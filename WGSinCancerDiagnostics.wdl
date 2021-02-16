@@ -309,7 +309,7 @@ workflow WGSinCancerDiagnostics {
     call hmftools.GripssApplicationKt as gripss {
         input:
             inputVcf = viralAnnotation.outputVcf,
-            tumorName = tumoreName,
+            tumorName = tumorName,
             normalName = normalName,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
@@ -364,7 +364,7 @@ workflow WGSinCancerDiagnostics {
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
             driverGenePanel = panelTsv,
-            hotspots = somaticHotspots
+            somaticHotspots = somaticHotspots
             # TODO provide germineline sage vcf, germline hotspots
 
             # TODO if shallow also the following:
