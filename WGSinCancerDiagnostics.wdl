@@ -48,8 +48,8 @@ workflow WGSinCancerDiagnostics {
         Boolean hg38
         File dbsnpVCF
         File dbsnpVCFIndex
-        File hotspots
-        File panelBed
+        File somaticHotspots
+        File somaticCodingPanel
         File highConfidenceBed
         File snpEffDataDirZip
         File viralReference
@@ -75,6 +75,8 @@ workflow WGSinCancerDiagnostics {
         File proteinFeaturesCsv
         File transExonDataCsv
         File transSpliceDataCsv
+        File? gridssBlacklistBed
+        File? repeatmaskerBed
         #File germlineCoveragePanel
         #File germlineHotspots
         #File germlineCodingPanel
@@ -210,6 +212,7 @@ workflow WGSinCancerDiagnostics {
     # somatic calling on pair
     call hmftools.Sage as somaticVariants {
         input:
+            #TODO add coverage bed
             tumorName = tumorName,
             tumorBam = tumor.bam,
             tumorBamIndex = tumor.bamIndex,
@@ -219,8 +222,8 @@ workflow WGSinCancerDiagnostics {
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
-            hotspots = hotspots,
-            panelBed = panelBed,
+            hotspots = somaticHotspots,
+            panelBed = somaticCodingPanel,
             highConfidenceBed = highConfidenceBed,
             hg38 = hg38
     }
@@ -281,7 +284,6 @@ workflow WGSinCancerDiagnostics {
             outputDir = "."
     }
 
-    # GRIDSS
     call gridss.GRIDSS as structuralVariants {
         input:
             tumorBam = tumor.bam,
@@ -290,7 +292,9 @@ workflow WGSinCancerDiagnostics {
             normalBam = normal.bam,
             normalBai = normal.bamIndex,
             normalLabel = normalName,
-            reference = bwaIndex
+            reference = bwaIndex,
+            blacklistBed = gridssBlacklistBed,
+            repeatmaskerBed = repeatmaskerBed
     }
 
     call gridss.AnnotateInsertedSequence as viralAnnotation {
@@ -305,6 +309,8 @@ workflow WGSinCancerDiagnostics {
     call hmftools.GripssApplicationKt as gripss {
         input:
             inputVcf = viralAnnotation.outputVcf,
+            tumorName = tumoreName,
+            normalName = normalName,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -358,8 +364,12 @@ workflow WGSinCancerDiagnostics {
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
             driverGenePanel = panelTsv,
-            hotspots = hotspots
-            # TODO provide germineline vcf
+            hotspots = somaticHotspots
+            # TODO provide germineline sage vcf, germline hotspots
+
+            # TODO if shallow also the following:
+            #-highly_diploid_percentage 0.88 \
+            #-somatic_min_purity_spread 0.1
     }
 
     call hmftools.Linx as linx {
@@ -390,7 +400,8 @@ workflow WGSinCancerDiagnostics {
             snvIndelVcf = somaticCompressed.compressed,
             snvIndelVcfIndex = somaticCompressed.index,
             svVcf = gripssFilter.outputVcf,
-            svVcfIndex = gripssFilter.outputVcfIndex
+            svVcfIndex = gripssFilter.outputVcfIndex,
+            hg38 = hg38
     }
 
     call hmftools.HealthChecker as healthChecker {
@@ -403,7 +414,6 @@ workflow WGSinCancerDiagnostics {
             tumorMetrics = tumor.metrics,
             purpleOutput = purple.outputs
     }
-    #TODO update tool version (sage, purple)
 
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
