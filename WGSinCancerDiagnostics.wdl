@@ -415,6 +415,8 @@ workflow WGSinCancerDiagnostics {
             purpleOutput = purple.outputs
     }
 
+    #TODO circos
+
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
         File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
