@@ -77,9 +77,14 @@ workflow WGSinCancerDiagnostics {
         File transSpliceDataCsv
         File? gridssBlacklistBed
         File? repeatmaskerBed
-        #File germlineCoveragePanel
-        #File germlineHotspots
-        #File germlineCodingPanel
+        File germlineCoveragePanel
+        File germlineHotspots
+        File germlineCodingPanel
+        File clinvarVcf
+        File clinvarVcfIndex
+        File germlineBlacklistBed
+        File germlineBlacklistVcf
+        File germlineBlacklistVcfIndex
     }
     meta {allowNestedInputs: true}
 
@@ -111,38 +116,135 @@ workflow WGSinCancerDiagnostics {
         }
 
     # germline calling on normal sample
-    call gatkPreprocess.GatkPreprocess as preprocess {
+
+    # FIXME remove or keep?
+    # call gatkPreprocess.GatkPreprocess as preprocess {
+    #     input:
+    #         bam = normal.bam,
+    #         bamIndex = normal.bamIndex,
+    #         referenceFasta = referenceFasta,
+    #         referenceFastaFai = referenceFastaFai,
+    #         referenceFastaDict = referenceFastaDict,
+    #         dbsnpVCF = dbsnpVCF,
+    #         dbsnpVCFIndex = dbsnpVCFIndex,
+    #         scatters = scatterList.scatters
+    # }
+
+    # call gatkVariantCalling.SingleSampleCalling as germlineVariants {
+    #     input:
+    #         bam = preprocess.recalibratedBam,
+    #         bamIndex = preprocess.recalibratedBamIndex,
+    #         sampleName = normalName,
+    #         referenceFasta = referenceFasta,
+    #         referenceFastaFai = referenceFastaFai,
+    #         referenceFastaDict = referenceFastaDict,
+    #         dbsnpVCF = dbsnpVCF,
+    #         dbsnpVCFIndex = dbsnpVCFIndex,
+    #         autosomalRegionScatters = scatterList.scatters
+    # }
+
+    # call snpEff.SnpEff as germlineAnnotation {
+    #     input:
+    #         vcf = select_first([germlineVariants.outputVcf]),
+    #         vcfIndex = select_first([germlineVariants.outputVcfIndex]),
+    #         genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
+    #         datadirZip = snpEffDataDirZip,
+    #         outputPath = "./germline.snpeff.vcf",
+    #         hgvs = true,
+    #         lof = true,
+    #         noDownstream = true,
+    #         noIntergenic = true,
+    #         noShiftHgvs = true,
+    #         upDownStreamLen = 1000
+    # }
+
+    # call samtools.BgzipAndIndex as germlineCompressed {
+    #     input:
+    #         inputFile = germlineAnnotation.outputVcf,
+    #         outputDir = "."
+    # }
+
+    call hmftools.Sage as germlineSage {
+        # use tumor as normal and normal as tumor
         input:
-            bam = normal.bam,
-            bamIndex = normal.bamIndex,
+            tumorName = normalName,
+            tumorBam = normal.bam,
+            tumorBamIndex = normal.bamIndex,
+            normalName = tumorName,
+            normalBam = tumor.bam,
+            normalBamIndex = tumor.bamIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
-            dbsnpVCF = dbsnpVCF,
-            dbsnpVCFIndex = dbsnpVCFIndex,
-            scatters = scatterList.scatters
+            hotspots = germlineHotspots,
+            panelBed = germlineCodingPanel,
+            highConfidenceBed = highConfidenceBed,
+            hg38 = hg38,
+            outputPath = "./germlineSage.vcf.gz",
+            hotspotMinTumorQual = 50,
+            panelMinTumorQual = 75,
+            hotspotMaxGermlineVaf = 100,
+            hotspotMaxGermlineRelRawBaseQual = 100,
+            panelMaxGermlineVaf = 100,
+            panelMaxGermlineRelRawBaseQual = 100,
+            mnvFilterEnabled = "false",
+            coverageBed = germlineCoveragePanel,
+            panelOnly = true
+    }
+    
+    call bcftools.Filter as germlinePassFilter {
+        input:
+            vcf = germlineSage.outputVcf,
+            vcfIndex = germlineSage.outputVcfIndex,
+            include = "'FILTER=\"PASS\"'",
+            outputPath = "./germlineSage.passFilter.vcf.gz"
+    }
+    
+    call bcftools.Annotate as germlineMappabilityAnnotation {
+        input:
+            annsFile = mappabilityBed,
+            columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
+            headerLines = mappabilityHdr,
+            inputFile = germlinePassFilter.outputVcf,
+            inputFileIndex = germlinePassFilter.outputVcfIndex,
+            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.vcf.gz"
     }
 
-    call gatkVariantCalling.SingleSampleCalling as germlineVariants {
+    call bcftools.Annotate as germlineClinvarAnnotation {
         input:
-            bam = preprocess.recalibratedBam,
-            bamIndex = preprocess.recalibratedBamIndex,
-            sampleName = normalName,
-            referenceFasta = referenceFasta,
-            referenceFastaFai = referenceFastaFai,
-            referenceFastaDict = referenceFastaDict,
-            dbsnpVCF = dbsnpVCF,
-            dbsnpVCFIndex = dbsnpVCFIndex,
-            autosomalRegionScatters = scatterList.scatters
+            annsFile = clinvarVcf,
+            annsFileIndex = clinvarVcfIndex,
+            columns = ["INFO/CLNSIG", "INFO/CLNSIGCONF"],
+            inputFile = germlineMappabilityAnnotation.outputVcf,
+            inputFileIndex = germlineMappabilityAnnotation.outputVcfIndex,
+            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.vcf.gz"
+    }
+
+    call bcftools.Annotate as germlineBlacklistRegionAnnotation {
+        input:
+            annsFile = germlineBlacklistBed,
+            columns = ["CHROM", "FROM", "TO"],
+            inputFile = germlineClinvarAnnotation.outputVcf,
+            inputFileIndex = germlineClinvarAnnotation.outputVcfIndex,
+            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.blacklistRegionAnnotated.vcf.gz"
+    }
+
+    call bcftools.Annotate as germlineBlacklistSiteAnnotation {
+        input:
+            annsFile = germlineBlacklistVcf,
+            annsFileIndex = germlineBlacklistVcfIndex,
+            inputFile = germlineBlacklistRegionAnnotation.outputVcf,
+            inputFileIndex = germlineBlacklistRegionAnnotation.outputVcfIndex,
+            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.blacklistRegionAnnotated.blacklistSiteAnnotated.vcf.gz"
     }
 
     call snpEff.SnpEff as germlineAnnotation {
         input:
-            vcf = select_first([germlineVariants.outputVcf]),
-            vcfIndex = select_first([germlineVariants.outputVcfIndex]),
+            vcf = germlineBlacklistSiteAnnotation.outputVcf,
+            vcfIndex = select_first([germlineBlacklistSiteAnnotation.outputVcfIndex]),
             genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
             datadirZip = snpEffDataDirZip,
-            outputPath = "./germline.snpeff.vcf",
+            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.blacklistRegionAnnotated.blacklistSiteAnnotated.snpeff.vcf",
             hgvs = true,
             lof = true,
             noDownstream = true,
@@ -156,58 +258,6 @@ workflow WGSinCancerDiagnostics {
             inputFile = germlineAnnotation.outputVcf,
             outputDir = "."
     }
-
-    #FIXME uncomment once germline hotspots, coverage panel, blacklist etc. are available
-    # call hmftools.Sage as germlineSage {
-    #     # use tumor as normal and normal as tumor
-    #     input:
-    #         tumorName = normalName,
-    #         tumorBam = normal.bam,
-    #         tumorBamIndex = normal.bamIndex,
-    #         normalName = tumorName,
-    #         normalBam = tumor.bam,
-    #         normalBamIndex = tumor.bamIndex,
-    #         referenceFasta = referenceFasta,
-    #         referenceFastaFai = referenceFastaFai,
-    #         referenceFastaDict = referenceFastaDict,
-    #         hotspots = germlineHotspots,
-    #         panelBed = germlineCodingPanel,
-    #         highConfidenceBed = highConfidenceBed,
-    #         hg38 = hg38,
-    #         outputPath = "./germlineSage.vcf.gz",
-    #         hotspotMinTumorQual = 50,
-    #         panelMinTumorQual = 75,
-    #         hotspotMaxGermlineVaf = 100,
-    #         hotspotMaxGermlineRelRawBaseQual = 100,
-    #         panelMaxGermlineVaf = 100,
-    #         panelMaxGermlineRelRawBaseQual = 100,
-    #         mnvFilterEnabled = "false",
-    #         coverageBed = germlineCoveragePanel,
-    #         panelOnly = true
-    # }
-    #
-    # call bcftools.Filter as germlinePassFilter {
-    #     input:
-    #         vcf = germlineSage.outputVcf,
-    #         vcfIndex = germlineSage.outputVcfIndex,
-    #         include = "'FILTER=\"PASS\"'",
-    #         outputPath = "./germlineSage.passFilter.vcf.gz"
-    # }
-    #
-    # call bcftools.Annotate as germlineMappabilityAnnotation {
-    #     input:
-    #         annsFile = mappabilityBed,
-    #         columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
-    #         headerLines = mappabilityHdr,
-    #         inputFile = germlinePassFilter.outputVcf,
-    #         inputFileIndex = germlinePassFilter.outputVcfIndex,
-    #         outputPath = "./germlineSage.passFilter.mappabilityAnnotated.vcf.gz"
-    # }
-
-    #TODO -> clinvar -> blacklistBed -> blacklistVcf -> snpeff -> purple
-    # bcftools annotate -a clinvar.vcf -c INFO/CLNSIG,INFO/CLNSIGCONF
-    # bcftools annotate -a blacklist.bed -m BLACKLIST_BED -c CHROM,FROM,TO
-    # bcftools annotate -a blacklist.vcf -m BLACKLIST_VCF
 
     # somatic calling on pair
     call hmftools.Sage as somaticVariants {
@@ -357,6 +407,7 @@ workflow WGSinCancerDiagnostics {
             cobaltOutput = cobalt.outputs,
             gcProfile = gcProfile,
             somaticVcf = somaticAnnotation.outputVcf,
+            germlineVcf = germlineAnnotation.outputVcf,
             filteredSvVcf = gripssFilter.outputVcf,
             fullSvVcf = structuralVariants.vcf,
             fullSvVcfIndex = structuralVariants.vcfIndex,
@@ -364,8 +415,8 @@ workflow WGSinCancerDiagnostics {
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
             driverGenePanel = panelTsv,
-            somaticHotspots = somaticHotspots
-            # TODO provide germineline sage vcf, germline hotspots
+            somaticHotspots = somaticHotspots,
+            germlineHotspots = germlineHotspots
 
             # TODO if shallow also the following:
             #-highly_diploid_percentage 0.88 \
@@ -426,8 +477,8 @@ workflow WGSinCancerDiagnostics {
         File germlineVcfIndex = germlineCompressed.index
         File normalBam = normal.bam
         File normalBamIndex = normal.bamIndex
-        File normalPreprocessedBam = preprocess.recalibratedBam
-        File normalPreprocessedBamIndex = preprocess.recalibratedBamIndex
+        #File normalPreprocessedBam = preprocess.recalibratedBam
+        #File normalPreprocessedBamIndex = preprocess.recalibratedBamIndex
         File tumorBam = tumor.bam
         File tumorBamIndex = tumor.bamIndex
         Array[File] cobaltOutput = cobalt.outputs
