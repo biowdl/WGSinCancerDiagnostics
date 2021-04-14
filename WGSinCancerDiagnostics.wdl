@@ -75,8 +75,9 @@ workflow WGSinCancerDiagnostics {
         File proteinFeaturesCsv
         File transExonDataCsv
         File transSpliceDataCsv
-        File? gridssBlacklistBed
-        File? repeatmaskerBed
+        File gridssBlacklistBed
+        File repeatmaskerBed
+        File gridssProperties
         File germlineCoveragePanel
         File germlineHotspots
         File germlineCodingPanel
@@ -344,7 +345,8 @@ workflow WGSinCancerDiagnostics {
             normalLabel = normalName,
             reference = bwaIndex,
             blacklistBed = gridssBlacklistBed,
-            repeatmaskerBed = repeatmaskerBed
+            repeatmaskerBed = repeatmaskerBed,
+            gridssProperties = gridssProperties
     }
 
     call gridss.AnnotateInsertedSequence as viralAnnotation {
