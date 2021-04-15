@@ -428,8 +428,8 @@ workflow WGSinCancerDiagnostics {
     call hmftools.Linx as linx {
         input:
             sampleName = tumorName,
-            svVcf = gripssFilter.outputVcf,
-            svVcfIndex = gripssFilter.outputVcfIndex,
+            svVcf = purple.purpleSvVcf,
+            svVcfIndex = purple.purpleSvVcfIndex,
             purpleOutput = purple.outputs,
             refGenomeVersion = if hg38 then "HG38" else "HG19",
             fragileSiteCsv = fragileSiteCsv,
