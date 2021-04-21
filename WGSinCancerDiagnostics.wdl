@@ -431,7 +431,7 @@ workflow WGSinCancerDiagnostics {
             svVcf = purple.purpleSvVcf,
             svVcfIndex = purple.purpleSvVcfIndex,
             purpleOutput = purple.outputs,
-            refGenomeVersion = if hg38 then "HG38" else "HG19",
+            refGenomeVersion = if hg38 then "HG38" else "HG37",
             fragileSiteCsv = fragileSiteCsv,
             lineElementCsv = lineElementCsv,
             replicationOriginsBed = replicationOriginsBed,
