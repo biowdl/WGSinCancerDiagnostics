@@ -497,8 +497,8 @@ task PonFilter {
         File inputVcfIndex
         String  outputPath
 
-        String memory = "1G"
-        Int timeMinutes = 2 + ceil(size(inputVcf, "G"))
+        String memory = "256M"
+        Int timeMinutes = 1 + ceil(size(inputVcf, "G"))
         String dockerImage = "quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2"
     }
 
