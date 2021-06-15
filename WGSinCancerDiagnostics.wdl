@@ -465,7 +465,24 @@ workflow WGSinCancerDiagnostics {
             purpleOutput = purple.outputs
     }
 
-    #TODO circos
+    call hmftools.Cuppa as cuppa  {
+        input:
+            linxOutput = linx.outputs,
+            purpleOutput = purple.outputs,
+            sampleName = tumoreName,
+            categories = ["DNA"],
+            referenceData = cuppaReferenceData,
+            purpleSvVcf = purple.purpleSvVcf,
+            purpleSvVcfIndex = purple.purpleSvVcfIndex,
+            purpleSomaticVcf = purple.purpleSomaticVcf,
+            purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex
+    }
+
+    call hmftools.CuppaChart as makeCuppaChart {
+        input:
+            sampleName = tumorName,
+            cupData = cuppa.cupData
+    }
 
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
@@ -488,6 +505,9 @@ workflow WGSinCancerDiagnostics {
         File HRDprediction = sigAndHRD.chordPrediction
         File signatures = sigAndHRD.chordSignatures
         File healthChecks = select_first([healthChecker.healthCheckSucceeded, healthChecker.healthCheckFailed])
+        File cupData = cuppa.cupData
+        File cuppaChart = makeCuppaChart.cuppaChart
+        File cuppaConclusion = makeCuppaChart.cuppaConclusion
     }
 }
 
