@@ -86,6 +86,7 @@ workflow WGSinCancerDiagnostics {
         File germlineBlacklistBed
         File germlineBlacklistVcf
         File germlineBlacklistVcfIndex
+        Array[File]+ cuppaReferenceData
     }
     meta {allowNestedInputs: true}
 
@@ -469,7 +470,7 @@ workflow WGSinCancerDiagnostics {
         input:
             linxOutput = linx.outputs,
             purpleOutput = purple.outputs,
-            sampleName = tumoreName,
+            sampleName = tumorName,
             categories = ["DNA"],
             referenceData = cuppaReferenceData,
             purpleSvVcf = purple.purpleSvVcf,
