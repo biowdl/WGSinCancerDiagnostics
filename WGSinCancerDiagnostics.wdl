@@ -76,7 +76,6 @@ workflow WGSinCancerDiagnostics {
         File transExonDataCsv
         File transSpliceDataCsv
         File gridssBlacklistBed
-        File repeatmaskerBed
         File gridssProperties
         File germlineCoveragePanel
         File germlineHotspots
@@ -346,13 +345,18 @@ workflow WGSinCancerDiagnostics {
             normalLabel = normalName,
             reference = bwaIndex,
             blacklistBed = gridssBlacklistBed,
-            repeatmaskerBed = repeatmaskerBed,
             gridssProperties = gridssProperties
+    }
+
+    call gridss.GridssAnnotateVcfRepeatmasker as GridssRepeatMasker {
+        input:
+            gridssVcf = structuralVariants.vcf,
+            gridssVcfIndex = structuralVariants.vcfIndex
     }
 
     call gridss.AnnotateInsertedSequence as viralAnnotation {
         input:
-            inputVcf = structuralVariants.vcf,
+            inputVcf = GridssRepeatMasker.annotatedVcf,
             viralReference = viralReference,
             viralReferenceFai = viralReferenceFai,
             viralReferenceDict = viralReferenceDict,
@@ -568,3 +572,57 @@ task PonFilter {
         timeMinutes: {description: "The maximum amount of time the job will run in minutes.", category: "advanced"}
     }
 }
+
+# TODOs
+# purple: update version (3.1)
+# linx: update version (1.16)
+# gripss: update version (1.11)
+# virusbreakend (2.11.1): 
+#    virusbreakend \
+#    --output T.virusbreakend.vcf \
+#    --workingdir outdir \
+#    --reference ref.fasta \
+#    --db db \
+#    --jar jar \
+#    bam
+# virusinterpreter (1.0):
+#    java -Xmx2G -jar virus-interpreter.jar \
+#    -sample_id sampleId \
+#    -virus_breakend_tsv  tsv \
+#    -taxonomy_db_tsv virusInterpreterTaxonomyDb \
+#    -virus_interpretation_tsv virusInterpretation \
+#    -virus_blacklist_tsv virusBlacklist \
+#    -output_dir out
+# repeatmasker (between gridss and viral annotation): 
+#    gridss_annotate_vcf_repeatmasker \
+#    --output out \
+#    --jar jar \
+#    -w outdir \
+#    --rm repeatmaskerExe \
+#    gridssVcf
+# peach (1.0):
+#    python3 src/main.py \
+#    germline.vcf \
+#    tumor \
+#    reference \
+#    toolversion \
+#    out \
+#    panelJson \
+#    vcftoolsExe
+# protect (1.4): 
+#    protect -Xmx8G \
+#    -tumor_sample_id tumor \
+#    -primary_tumor_doids doids \
+#    -output_dir out \
+#    -serve_actionability_dir serve \
+#    -doid_json doids.json \
+#    -purple_purity_tsv purplePurityPath \
+#    -purple_qc_file purpleQCFilePath \
+#    -purple_somatic_driver_catalog_tsv purpleDriverCatalogSomaticPath \
+#    -purple_germline_driver_catalog_tsv purpleDriverCatalogGermlinePath \
+#    -purple_somatic_variant_vcf purpleSomaticVariantsPath \
+#    -purple_germline_variant_vcf purpleGermlineVariantsPath \
+#    -linx_fusion_tsv linxFusionTsvPath \
+#    -linx_breakend_tsv linxBreakendTsvPath \
+#    -linx_driver_catalog_tsv linxDriversTsvPath \
+#    -chord_prediction_txt chordPredictionPath
