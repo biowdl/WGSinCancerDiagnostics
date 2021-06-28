@@ -86,6 +86,7 @@ workflow WGSinCancerDiagnostics {
         File germlineBlacklistVcf
         File germlineBlacklistVcfIndex
         Array[File]+ cuppaReferenceData
+        File virusbreakendDB
     }
     meta {allowNestedInputs: true}
 
@@ -117,53 +118,6 @@ workflow WGSinCancerDiagnostics {
         }
 
     # germline calling on normal sample
-
-    # FIXME remove or keep?
-    # call gatkPreprocess.GatkPreprocess as preprocess {
-    #     input:
-    #         bam = normal.bam,
-    #         bamIndex = normal.bamIndex,
-    #         referenceFasta = referenceFasta,
-    #         referenceFastaFai = referenceFastaFai,
-    #         referenceFastaDict = referenceFastaDict,
-    #         dbsnpVCF = dbsnpVCF,
-    #         dbsnpVCFIndex = dbsnpVCFIndex,
-    #         scatters = scatterList.scatters
-    # }
-
-    # call gatkVariantCalling.SingleSampleCalling as germlineVariants {
-    #     input:
-    #         bam = preprocess.recalibratedBam,
-    #         bamIndex = preprocess.recalibratedBamIndex,
-    #         sampleName = normalName,
-    #         referenceFasta = referenceFasta,
-    #         referenceFastaFai = referenceFastaFai,
-    #         referenceFastaDict = referenceFastaDict,
-    #         dbsnpVCF = dbsnpVCF,
-    #         dbsnpVCFIndex = dbsnpVCFIndex,
-    #         autosomalRegionScatters = scatterList.scatters
-    # }
-
-    # call snpEff.SnpEff as germlineAnnotation {
-    #     input:
-    #         vcf = select_first([germlineVariants.outputVcf]),
-    #         vcfIndex = select_first([germlineVariants.outputVcfIndex]),
-    #         genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
-    #         datadirZip = snpEffDataDirZip,
-    #         outputPath = "./germline.snpeff.vcf",
-    #         hgvs = true,
-    #         lof = true,
-    #         noDownstream = true,
-    #         noIntergenic = true,
-    #         noShiftHgvs = true,
-    #         upDownStreamLen = 1000
-    # }
-
-    # call samtools.BgzipAndIndex as germlineCompressed {
-    #     input:
-    #         inputFile = germlineAnnotation.outputVcf,
-    #         outputDir = "."
-    # }
 
     call hmftools.Sage as germlineSage {
         # use tumor as normal and normal as tumor
@@ -489,6 +443,14 @@ workflow WGSinCancerDiagnostics {
             cupData = cuppa.cupData
     }
 
+    call gridss.Virusbreakend as virusbreakend {
+        input:
+            bam = tumor.bam,
+            bamIndex = tumor.bamIndex,
+            referenceFasta = referenceFasta,
+            virusbreakendDB = virusbreakendDB
+    }
+
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
         File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
@@ -498,8 +460,6 @@ workflow WGSinCancerDiagnostics {
         File germlineVcfIndex = germlineCompressed.index
         File normalBam = normal.bam
         File normalBamIndex = normal.bamIndex
-        #File normalPreprocessedBam = preprocess.recalibratedBam
-        #File normalPreprocessedBamIndex = preprocess.recalibratedBamIndex
         File tumorBam = tumor.bam
         File tumorBamIndex = tumor.bamIndex
         Array[File] cobaltOutput = cobalt.outputs
@@ -513,6 +473,10 @@ workflow WGSinCancerDiagnostics {
         File cupData = cuppa.cupData
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
+        File tumorMetrics = tumor.metrics
+        File tumorFlagstats = tumor.flagstats
+        File normalMetrics = normal.metrics
+        File normalFlagstats = normal.flagstats
     }
 }
 
@@ -577,14 +541,6 @@ task PonFilter {
 # purple: update version (3.1)
 # linx: update version (1.16)
 # gripss: update version (1.11)
-# virusbreakend (2.11.1): 
-#    virusbreakend \
-#    --output T.virusbreakend.vcf \
-#    --workingdir outdir \
-#    --reference ref.fasta \
-#    --db db \
-#    --jar jar \
-#    bam
 # virusinterpreter (1.0):
 #    java -Xmx2G -jar virus-interpreter.jar \
 #    -sample_id sampleId \
@@ -593,13 +549,6 @@ task PonFilter {
 #    -virus_interpretation_tsv virusInterpretation \
 #    -virus_blacklist_tsv virusBlacklist \
 #    -output_dir out
-# repeatmasker (between gridss and viral annotation): 
-#    gridss_annotate_vcf_repeatmasker \
-#    --output out \
-#    --jar jar \
-#    -w outdir \
-#    --rm repeatmaskerExe \
-#    gridssVcf
 # peach (1.0):
 #    python3 src/main.py \
 #    germline.vcf \
