@@ -87,6 +87,12 @@ workflow WGSinCancerDiagnostics {
         File germlineBlacklistVcfIndex
         Array[File]+ cuppaReferenceData
         File virusbreakendDB
+        File taxonomyDbTsv
+        File virusInterpretationTsv
+        File virusBlacklistTsv
+        Array[String]+ sampleDoids
+        Array[File]+ serveActionability
+        File doidsJson
     }
     meta {allowNestedInputs: true}
 
@@ -451,6 +457,39 @@ workflow WGSinCancerDiagnostics {
             virusbreakendDB = virusbreakendDB
     }
 
+    call hmftools.VirusInterpreter as virusInterpreter {
+        input:
+            sampleId = tumorName,
+            virusBreakendTsv = virusbreakend.summary,
+            taxonomyDbTsv = taxonomyDbTsv,
+            virusInterpretationTsv = virusInterpretationTsv,
+            virusBlacklistTsv = virusBlacklistTsv
+    }
+
+    call hmftools.Protect as protect {
+        input:
+            refGenomeVersion = if hg38 then "38" else "37",
+            tumorName = tumorName,
+            normalName = normalName,
+            sampleDoids = sampleDoids,
+            serveActionability = serveActionability,
+            doidsJson = doidsJson,
+            purplePurity = purple.purplePurityTsv,
+            purpleQc = purple.purpleQc,
+            purpleDriverCatalogSomatic = purple.driverCatalogSomaticTsv,
+            purpleDriverCatalogGermline = purple.driverCatalogGermlineTsv,
+            purpleSomaticVariants = purple.purpleSomaticVcf,
+            purpleSomaticVariantsIndex = purple.purpleSomaticVcfIndex,
+            purpleGermlineVariants = purple.purpleGermlineVcf,
+            purpleGermlineVariantsIndex = purple.purpleGermlineVcfIndex,
+            purpleGeneCopyNumber = purple.purpleCnvGeneTsv,
+            linxFusion = linx.linxFusion,
+            linxBreakend = linx.linxBreakend,
+            linxDriversCatalog = linx.driverCatalog,
+            chordPrediction = sigAndHRD.chordPrediction,
+            annotatedVirus = virusInterpreter.virusAnnotatedTsv
+    }
+
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
         File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
@@ -477,6 +516,10 @@ workflow WGSinCancerDiagnostics {
         File tumorFlagstats = tumor.flagstats
         File normalMetrics = normal.metrics
         File normalFlagstats = normal.flagstats
+        File virusbreakendVcf = virusbreakend.vcf
+        File virusbreakendSummary = virusbreakend.summary
+        File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
+        File protectTsv = protect.protectTsv
     }
 }
 
@@ -541,14 +584,6 @@ task PonFilter {
 # purple: update version (3.1)
 # linx: update version (1.16)
 # gripss: update version (1.11)
-# virusinterpreter (1.0):
-#    java -Xmx2G -jar virus-interpreter.jar \
-#    -sample_id sampleId \
-#    -virus_breakend_tsv  tsv \
-#    -taxonomy_db_tsv virusInterpreterTaxonomyDb \
-#    -virus_interpretation_tsv virusInterpretation \
-#    -virus_blacklist_tsv virusBlacklist \
-#    -output_dir out
 # peach (1.0):
 #    python3 src/main.py \
 #    germline.vcf \
