@@ -118,11 +118,6 @@ workflow WGSinCancerDiagnostics {
             hg38 = hg38
     }
 
-    call chunkedScatter.ScatterRegions as scatterList {
-        input:
-            inputFile = referenceFastaFai
-        }
-
     # germline calling on normal sample
 
     call hmftools.Sage as germlineSage {
