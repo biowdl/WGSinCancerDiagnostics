@@ -308,7 +308,7 @@ workflow WGSinCancerDiagnostics {
             gridssProperties = gridssProperties
     }
 
-    call gridss.GridssAnnotateVcfRepeatmasker as GridssRepeatMasker {
+    call gridss.GridssAnnotateVcfRepeatmasker as gridssRepeatMasker {
         input:
             gridssVcf = structuralVariants.vcf,
             gridssVcfIndex = structuralVariants.vcfIndex
@@ -316,7 +316,7 @@ workflow WGSinCancerDiagnostics {
 
     call gridss.AnnotateInsertedSequence as viralAnnotation {
         input:
-            inputVcf = GridssRepeatMasker.annotatedVcf,
+            inputVcf = gridssRepeatMasker.annotatedVcf,
             viralReference = viralReference,
             viralReferenceFai = viralReferenceFai,
             viralReferenceDict = viralReferenceDict,
