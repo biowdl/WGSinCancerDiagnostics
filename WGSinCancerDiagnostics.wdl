@@ -576,9 +576,7 @@ task PonFilter {
 }
 
 # TODOs
-# purple: update version (3.1)
 # linx: update version (1.16)
-# gripss: update version (1.11)
 # peach (1.0):
 #    python3 src/main.py \
 #    germline.vcf \
@@ -588,20 +586,3 @@ task PonFilter {
 #    out \
 #    panelJson \
 #    vcftoolsExe
-# protect (1.4): 
-#    protect -Xmx8G \
-#    -tumor_sample_id tumor \
-#    -primary_tumor_doids doids \
-#    -output_dir out \
-#    -serve_actionability_dir serve \
-#    -doid_json doids.json \
-#    -purple_purity_tsv purplePurityPath \
-#    -purple_qc_file purpleQCFilePath \
-#    -purple_somatic_driver_catalog_tsv purpleDriverCatalogSomaticPath \
-#    -purple_germline_driver_catalog_tsv purpleDriverCatalogGermlinePath \
-#    -purple_somatic_variant_vcf purpleSomaticVariantsPath \
-#    -purple_germline_variant_vcf purpleGermlineVariantsPath \
-#    -linx_fusion_tsv linxFusionTsvPath \
-#    -linx_breakend_tsv linxBreakendTsvPath \
-#    -linx_driver_catalog_tsv linxDriversTsvPath \
-#    -chord_prediction_txt chordPredictionPath
