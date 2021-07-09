@@ -508,9 +508,9 @@ workflow WGSinCancerDiagnostics {
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
         File tumorMetrics = tumor.metrics
-        File tumorFlagstats = tumor.flagstats
+        #File tumorFlagstats = tumor.flagstats
         File normalMetrics = normal.metrics
-        File normalFlagstats = normal.flagstats
+        #File normalFlagstats = normal.flagstats
         File virusbreakendVcf = virusbreakend.vcf
         File virusbreakendSummary = virusbreakend.summary
         File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
