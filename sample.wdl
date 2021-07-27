@@ -90,7 +90,8 @@ workflow SampleWorkflow {
     call sambamba.Flagstat as flagstat {
         input:
             inputBam = markdup.outputBam,
-            inputBamIndex = markdup.outputBamIndex
+            inputBamIndex = markdup.outputBamIndex,
+            outputPath = "./~{sample}.flagstat.txt"
     }
 
     output {

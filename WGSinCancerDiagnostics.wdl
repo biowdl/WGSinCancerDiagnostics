@@ -93,6 +93,8 @@ workflow WGSinCancerDiagnostics {
         Array[String]+ sampleDoids
         Array[File]+ serveActionability
         File doidsJson
+        File peachTranscriptTsv
+        File peachPanelJson
     }
     meta {allowNestedInputs: true}
 
@@ -218,7 +220,6 @@ workflow WGSinCancerDiagnostics {
     # somatic calling on pair
     call hmftools.Sage as somaticVariants {
         input:
-            #TODO add coverage bed
             tumorName = tumorName,
             tumorBam = tumor.bam,
             tumorBamIndex = tumor.bamIndex,
@@ -230,6 +231,7 @@ workflow WGSinCancerDiagnostics {
             referenceFastaDict = referenceFastaDict,
             hotspots = somaticHotspots,
             panelBed = somaticCodingPanel,
+            coverageBed = somaticCodingPanel,
             highConfidenceBed = highConfidenceBed,
             hg38 = hg38
     }
@@ -485,6 +487,16 @@ workflow WGSinCancerDiagnostics {
             annotatedVirus = virusInterpreter.virusAnnotatedTsv
     }
 
+    call peachTask.Peach as peach {
+        input:
+            transcriptTsv = peachTranscriptTsv,
+            germlineVcf= purple.purpleGermlineVcf,
+            germlineVcfIndex = purple.purpleGermlineVcfIndex,
+            tumorName = tumorName,
+            normalName = normalName,
+            panelJson = peachPanelJson
+    }
+
     output {
         File structuralVariantsVcf = gripssFilter.outputVcf
         File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
@@ -508,13 +520,14 @@ workflow WGSinCancerDiagnostics {
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
         File tumorMetrics = tumor.metrics
-        #File tumorFlagstats = tumor.flagstats
+        File tumorFlagstats = tumor.flagstats
         File normalMetrics = normal.metrics
-        #File normalFlagstats = normal.flagstats
+        File normalFlagstats = normal.flagstats
         File virusbreakendVcf = virusbreakend.vcf
         File virusbreakendSummary = virusbreakend.summary
         File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
         File protectTsv = protect.protectTsv
+        Array[File] peachOutput = peach.outputs
     }
 }
 
@@ -577,12 +590,3 @@ task PonFilter {
 
 # TODOs
 # linx: update version (1.16)
-# peach (1.0):
-#    python3 src/main.py \
-#    germline.vcf \
-#    tumor \
-#    reference \
-#    toolversion \
-#    out \
-#    panelJson \
-#    vcftoolsExe
