@@ -31,6 +31,7 @@ import "tasks/chunked-scatter.wdl" as chunkedScatter
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
+import "tasks/peach.wdl" as peachTask
 import "tasks/samtools.wdl" as samtools
 import "tasks/snpeff.wdl" as snpEff
 
