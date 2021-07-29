@@ -588,6 +588,3 @@ task PonFilter {
         timeMinutes: {description: "The maximum amount of time the job will run in minutes.", category: "advanced"}
     }
 }
-
-# TODOs
-# linx: update version (1.16)
