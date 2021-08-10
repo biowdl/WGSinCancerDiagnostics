@@ -23,6 +23,7 @@ version 1.0
 # SOFTWARE.
 
 import "QC/QC.wdl" as qc
+import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
@@ -43,6 +44,8 @@ workflow SampleWorkflow {
         File referenceFasta
         File referenceFastaFai
         File referenceFastaDict
+        File genomeFile
+        File driverGeneBed
         Boolean hg38
     }
     meta {allowNestedInputs: true}
@@ -94,10 +97,20 @@ workflow SampleWorkflow {
             outputPath = "./~{sample}.flagstat.txt"
     }
 
+    call bedtools.Coverage as coverage {
+        input:
+            genomeFile = genomeFile,
+            a = driverGeneBed,
+            b = markdup.outputBam,
+            bIndex = markdup.outputBamIndex,
+            outputPath = "./~{sample}.driverGeneCoverage.tsv"
+    }
+
     output {
         File bam = markdup.outputBam
         File bamIndex = markdup.outputBamIndex
         File metrics = collectMetrics.metrics
         File flagstats = flagstat.stats
+        File driverGeneCoverage = coverage.coverageTsv
     }
 }
