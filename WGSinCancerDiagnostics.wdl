@@ -46,6 +46,7 @@ workflow WGSinCancerDiagnostics {
         File referenceFasta
         File referenceFastaFai
         File referenceFastaDict
+        File genomeFile
         Boolean hg38
         File dbsnpVCF
         File dbsnpVCFIndex
@@ -96,6 +97,7 @@ workflow WGSinCancerDiagnostics {
         File doidsJson
         File peachTranscriptTsv
         File peachPanelJson
+        File driverGeneBed
     }
     meta {allowNestedInputs: true}
 
@@ -107,6 +109,8 @@ workflow WGSinCancerDiagnostics {
             referenceFasta = referenceFasta,
             referenceFastaDict = referenceFastaDict,
             referenceFastaFai = referenceFastaFai,
+            genomeFile = genomeFile,
+            driverGeneBed = driverGeneBed,
             hg38 = hg38
     }
 
@@ -118,6 +122,8 @@ workflow WGSinCancerDiagnostics {
             referenceFasta = referenceFasta,
             referenceFastaDict = referenceFastaDict,
             referenceFastaFai = referenceFastaFai,
+            genomeFile = genomeFile,
+            driverGeneBed = driverGeneBed,
             hg38 = hg38
     }
 
