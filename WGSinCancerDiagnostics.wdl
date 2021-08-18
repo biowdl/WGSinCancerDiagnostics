@@ -28,6 +28,7 @@ import "sample.wdl" as sample
 import "tasks/bcftools.wdl" as bcftools
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
+import "tasks/deconstructsigs.wdl" as deconstructSigs
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
@@ -98,6 +99,7 @@ workflow WGSinCancerDiagnostics {
         File peachTranscriptTsv
         File peachPanelJson
         File driverGeneBed
+        File cosmicSignatures
     }
     meta {allowNestedInputs: true}
 
@@ -423,6 +425,12 @@ workflow WGSinCancerDiagnostics {
             hg38 = hg38
     }
 
+    call deconstructSigs.DeconstructSigs as signatureWeights {
+        input:
+            signaturesMatrix = sigAndHRD.chordSignatures,
+            signaturesReference = cosmicSignatures
+    }
+
     call hmftools.HealthChecker as healthChecker {
         input:
             normalName = normalName,
@@ -522,6 +530,7 @@ workflow WGSinCancerDiagnostics {
         Array[File] linxOutput = linx.outputs
         File HRDprediction = sigAndHRD.chordPrediction
         File signatures = sigAndHRD.chordSignatures
+        File signatureRDS = signatureWeights.signatureRDS
         File healthChecks = select_first([healthChecker.healthCheckSucceeded, healthChecker.healthCheckFailed])
         File cupData = cuppa.cupData
         File cuppaChart = makeCuppaChart.cuppaChart
