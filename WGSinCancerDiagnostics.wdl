@@ -24,8 +24,9 @@ version 1.0
 
 import "gatk-preprocess/gatk-preprocess.wdl" as gatkPreprocess
 import "gatk-variantcalling/single-sample-variantcalling.wdl" as gatkVariantCalling
-import "sample.wdl" as sample
+import "QC/QC.wdl" as qc
 import "tasks/bcftools.wdl" as bcftools
+import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
 import "tasks/chunked-scatter.wdl" as chunkedScatter
 import "tasks/deconstructsigs.wdl" as deconstructSigs
@@ -33,9 +34,10 @@ import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
 import "tasks/peach.wdl" as peachTask
+import "tasks/picard.wdl" as picard
+import "tasks/sambamba.wdl" as sambamba
 import "tasks/samtools.wdl" as samtools
 import "tasks/snpeff.wdl" as snpEff
-
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -103,30 +105,120 @@ workflow WGSinCancerDiagnostics {
     }
     meta {allowNestedInputs: true}
 
-    call sample.SampleWorkflow as normal {
-        input:
-            readgroups = normalReadgroups,
-            sample = normalName,
-            bwaIndex = bwaIndex,
-            referenceFasta = referenceFasta,
-            referenceFastaDict = referenceFastaDict,
-            referenceFastaFai = referenceFastaFai,
-            genomeFile = genomeFile,
-            driverGeneBed = driverGeneBed,
-            hg38 = hg38
+    # Normal sample
+
+    scatter (normalReadgroup in normalReadgroups) {
+        call qc.QC as normalQC {
+            input:
+                read1 = normalReadgroup.read1,
+                read2 = normalReadgroup.read2,
+                runAdapterClipping = false
+        }
+
+        call bwa.Mem as normalBwaMem {
+            input:
+                read1 = normalReadgroup.read1, # not using QC output since it's the same as the raw (allows more parallelization)
+                read2 = normalReadgroup.read2,
+                readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
+                bwaIndex = bwaIndex,
+                threads = 8,
+                usePostalt = hg38,
+                useSoftclippingForSupplementary = true,
+                outputPrefix = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
+            }
     }
 
-    call sample.SampleWorkflow as tumor {
+    call sambamba.Markdup as normalMarkdup {
         input:
-            readgroups = tumorReadgroups,
-            sample = tumorName,
-            bwaIndex = bwaIndex,
+            inputBams = normalBwaMem.outputBam,
+            outputPath = "~{normalName}.markdup.bam"
+    }
+
+    call picard.CollectWgsMetrics as normalCollectMetrics {
+        input: 
+            inputBam = normalMarkdup.outputBam,
+            inputBamIndex = normalMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaDict = referenceFastaDict,
             referenceFastaFai = referenceFastaFai,
+            outputPath = "./~{normalName}.wgs_metrics.txt",
+            minimumMappingQuality = 20,
+            minimumBaseQuality = 10,
+            coverageCap = 250
+    }
+
+    call sambamba.Flagstat as normalFlagstat {
+        input:
+            inputBam = normalMarkdup.outputBam,
+            inputBamIndex = normalMarkdup.outputBamIndex,
+            outputPath = "./~{normalName}.flagstat.txt"
+    }
+
+    call bedtools.Coverage as normalCoverage {
+        input:
             genomeFile = genomeFile,
-            driverGeneBed = driverGeneBed,
-            hg38 = hg38
+            a = driverGeneBed,
+            b = normalMarkdup.outputBam,
+            bIndex = normalMarkdup.outputBamIndex,
+            outputPath = "./~{normalName}.driverGeneCoverage.tsv"
+    }
+
+    # Tumor sample
+
+    scatter (tumorReadgroup in tumorReadgroups) {
+        call qc.QC as tumorQC {
+            input:
+                read1 = tumorReadgroup.read1, 
+                read2 = tumorReadgroup.read2,
+                runAdapterClipping = false
+        }
+
+        call bwa.Mem as tumorBwaMem {
+            input:
+                read1 = tumorReadgroup.read1, # not using QC output since it's the same as the raw (allows more parallelization)
+                read2 = tumorReadgroup.read2,
+                readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
+                bwaIndex = bwaIndex,
+                threads = 8,
+                usePostalt = hg38,
+                useSoftclippingForSupplementary = true,
+                outputPrefix = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
+            }
+    }
+
+    call sambamba.Markdup as tumorMarkdup {
+        input:
+            inputBams = tumorBwaMem.outputBam,
+            outputPath = "~{tumorName}.markdup.bam"
+    }
+
+    call picard.CollectWgsMetrics as tumorCollectMetrics {
+        input: 
+            inputBam = tumorMarkdup.outputBam,
+            inputBamIndex = tumorMarkdup.outputBamIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaDict = referenceFastaDict,
+            referenceFastaFai = referenceFastaFai,
+            outputPath = "./~{tumorName}.wgs_metrics.txt",
+            minimumMappingQuality = 20,
+            minimumBaseQuality = 10,
+            coverageCap = 250
+    }
+
+    call sambamba.Flagstat as tumorFlagstat {
+        input:
+            inputBam = tumorMarkdup.outputBam,
+            inputBamIndex = tumorMarkdup.outputBamIndex,
+            outputPath = "./~{tumorName}.flagstat.txt"
+    }
+
+    call bedtools.Coverage as tumorCoverage {
+        input:
+            genomeFile = genomeFile,
+            a = driverGeneBed,
+            b = tumorMarkdup.outputBam,
+            bIndex = tumorMarkdup.outputBamIndex,
+            outputPath = "./~{tumorName}.driverGeneCoverage.tsv"
     }
 
     # germline calling on normal sample
@@ -135,11 +227,11 @@ workflow WGSinCancerDiagnostics {
         # use tumor as normal and normal as tumor
         input:
             tumorName = normalName,
-            tumorBam = normal.bam,
-            tumorBamIndex = normal.bamIndex,
+            tumorBam = normalMarkdup.outputBam,
+            tumorBamIndex = normalMarkdup.outputBamIndex,
             normalName = tumorName,
-            normalBam = tumor.bam,
-            normalBamIndex = tumor.bamIndex,
+            normalBam = tumorMarkdup.outputBam,
+            normalBamIndex = tumorMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -230,11 +322,11 @@ workflow WGSinCancerDiagnostics {
     call hmftools.Sage as somaticVariants {
         input:
             tumorName = tumorName,
-            tumorBam = tumor.bam,
-            tumorBamIndex = tumor.bamIndex,
+            tumorBam = tumorMarkdup.outputBam,
+            tumorBamIndex = tumorMarkdup.outputBamIndex,
             normalName = normalName,
-            normalBam = normal.bam,
-            normalBamIndex = normal.bamIndex,
+            normalBam = normalMarkdup.outputBam,
+            normalBamIndex = normalMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -303,11 +395,11 @@ workflow WGSinCancerDiagnostics {
 
     call gridss.GRIDSS as structuralVariants {
         input:
-            tumorBam = tumor.bam,
-            tumorBai = tumor.bamIndex,
+            tumorBam = tumorMarkdup.outputBam,
+            tumorBai = tumorMarkdup.outputBamIndex,
             tumorLabel = tumorName,
-            normalBam = normal.bam,
-            normalBai = normal.bamIndex,
+            normalBam = normalMarkdup.outputBam,
+            normalBai = normalMarkdup.outputBamIndex,
             normalLabel = normalName,
             reference = bwaIndex,
             blacklistBed = gridssBlacklistBed,
@@ -350,11 +442,11 @@ workflow WGSinCancerDiagnostics {
     call hmftools.Amber as amber {
         input:
             normalName = normalName,
-            normalBam = normal.bam,
-            normalBamIndex = normal.bamIndex,
+            normalBam = normalMarkdup.outputBam,
+            normalBamIndex = normalMarkdup.outputBamIndex,
             tumorName = tumorName,
-            tumorBam = tumor.bam,
-            tumorBamIndex = tumor.bamIndex,
+            tumorBam = tumorMarkdup.outputBam,
+            tumorBamIndex = tumorMarkdup.outputBamIndex,
             loci = likelyHeterozygousLoci,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
@@ -364,11 +456,11 @@ workflow WGSinCancerDiagnostics {
     call hmftools.Cobalt as cobalt {
         input:
             normalName = normalName,
-            normalBam = normal.bam,
-            normalBamIndex = normal.bamIndex,
+            normalBam = normalMarkdup.outputBam,
+            normalBamIndex = normalMarkdup.outputBamIndex,
             tumorName = tumorName,
-            tumorBam = tumor.bam,
-            tumorBamIndex = tumor.bamIndex,
+            tumorBam = tumorMarkdup.outputBam,
+            tumorBamIndex = tumorMarkdup.outputBamIndex,
             gcProfile = gcProfile
     }
 
@@ -434,11 +526,11 @@ workflow WGSinCancerDiagnostics {
     call hmftools.HealthChecker as healthChecker {
         input:
             normalName = normalName,
-            normalFlagstats = normal.flagstats,
-            normalMetrics = normal.metrics,
+            normalFlagstats = normalFlagstat.stats,
+            normalMetrics = normalCollectMetrics.metrics,
             tumorName = tumorName,
-            tumorFlagstats= tumor.flagstats,
-            tumorMetrics = tumor.metrics,
+            tumorFlagstats= tumorFlagstat.stats,
+            tumorMetrics = tumorCollectMetrics.metrics,
             purpleOutput = purple.outputs
     }
 
@@ -463,8 +555,8 @@ workflow WGSinCancerDiagnostics {
 
     call gridss.Virusbreakend as virusbreakend {
         input:
-            bam = tumor.bam,
-            bamIndex = tumor.bamIndex,
+            bam = tumorMarkdup.outputBam,
+            bamIndex = tumorMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
             virusbreakendDB = virusbreakendDB
     }
@@ -519,10 +611,10 @@ workflow WGSinCancerDiagnostics {
         File somaticVcfIndex = somaticCompressed.index
         File germlineVcf = germlineCompressed.compressed
         File germlineVcfIndex = germlineCompressed.index
-        File normalBam = normal.bam
-        File normalBamIndex = normal.bamIndex
-        File tumorBam = tumor.bam
-        File tumorBamIndex = tumor.bamIndex
+        File normalBam = normalMarkdup.outputBam
+        File normalBamIndex = normalMarkdup.outputBamIndex
+        File tumorBam = tumorMarkdup.outputBam
+        File tumorBamIndex = tumorMarkdup.outputBamIndex
         Array[File] cobaltOutput = cobalt.outputs
         Array[File] amberOutput = amber.outputs
         Array[File] purpleOutput = purple.outputs
@@ -535,12 +627,12 @@ workflow WGSinCancerDiagnostics {
         File cupData = cuppa.cupData
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
-        File tumorMetrics = tumor.metrics
-        File tumorFlagstats = tumor.flagstats
-        File tumorDriverGeneCoverage = tumor.driverGeneCoverage
-        File normalMetrics = normal.metrics
-        File normalFlagstats = normal.flagstats
-        File normalDriverGeneCoverage = normal.driverGeneCoverage
+        File tumorMetrics = tumorCollectMetrics.metrics
+        File tumorFlagstats = tumorFlagstat.stats
+        File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
+        File normalMetrics = normalCollectMetrics.metrics
+        File normalFlagstats = normalFlagstat.stats
+        File normalDriverGeneCoverage = normalCoverage.coverageTsv
         File virusbreakendVcf = virusbreakend.vcf
         File virusbreakendSummary = virusbreakend.summary
         File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
@@ -604,4 +696,11 @@ task PonFilter {
         memory: {description: "The amount of memory this job will use.", category: "advanced"}
         timeMinutes: {description: "The maximum amount of time the job will run in minutes.", category: "advanced"}
     }
+}
+
+struct Readgroup {
+    String id
+    String library
+    File read1
+    File? read2
 }
