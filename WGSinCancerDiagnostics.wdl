@@ -22,13 +22,10 @@ version 1.0
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import "gatk-preprocess/gatk-preprocess.wdl" as gatkPreprocess
-import "gatk-variantcalling/single-sample-variantcalling.wdl" as gatkVariantCalling
 import "QC/QC.wdl" as qc
 import "tasks/bcftools.wdl" as bcftools
 import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
-import "tasks/chunked-scatter.wdl" as chunkedScatter
 import "tasks/deconstructsigs.wdl" as deconstructSigs
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
 import "tasks/gridss.wdl" as gridss
@@ -51,8 +48,6 @@ workflow WGSinCancerDiagnostics {
         File referenceFastaDict
         File genomeFile
         Boolean hg38
-        File dbsnpVCF
-        File dbsnpVCFIndex
         File somaticHotspots
         File somaticCodingPanel
         File highConfidenceBed
@@ -112,6 +107,7 @@ workflow WGSinCancerDiagnostics {
             input:
                 read1 = normalReadgroup.read1,
                 read2 = normalReadgroup.read2,
+                outputDir = "./QC",
                 runAdapterClipping = false
         }
 
@@ -170,6 +166,7 @@ workflow WGSinCancerDiagnostics {
             input:
                 read1 = tumorReadgroup.read1, 
                 read2 = tumorReadgroup.read2,
+                outputDir = "./QC",
                 runAdapterClipping = false
         }
 
@@ -605,6 +602,8 @@ workflow WGSinCancerDiagnostics {
     }
 
     output {
+        Array[File] normalQcReports = flatten(normalQC.reports)
+        Array[File] tumorQcReports = flatten(tumorQC.reports)
         File structuralVariantsVcf = gripssFilter.outputVcf
         File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
         File somaticVcf = somaticCompressed.compressed
