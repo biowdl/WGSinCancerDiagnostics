@@ -46,6 +46,7 @@ workflow WGSinCancerDiagnostics {
         File referenceFasta
         File referenceFastaFai
         File referenceFastaDict
+        File referenceImg
         File genomeFile
         Boolean hg38
         File somaticHotspots
@@ -555,6 +556,7 @@ workflow WGSinCancerDiagnostics {
             bam = tumorMarkdup.outputBam,
             bamIndex = tumorMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
+            referenceImg = referenceImg,
             virusbreakendDB = virusbreakendDB
     }
 
