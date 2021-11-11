@@ -128,7 +128,8 @@ workflow WGSinCancerDiagnostics {
     call sambamba.Markdup as normalMarkdup {
         input:
             inputBams = normalBwaMem.outputBam,
-            outputPath = "~{normalName}.markdup.bam"
+            outputPath = "~{normalName}.markdup.bam",
+            threads = 3
     }
 
     call picard.CollectWgsMetrics as normalCollectMetrics {
@@ -187,7 +188,8 @@ workflow WGSinCancerDiagnostics {
     call sambamba.Markdup as tumorMarkdup {
         input:
             inputBams = tumorBwaMem.outputBam,
-            outputPath = "~{tumorName}.markdup.bam"
+            outputPath = "~{tumorName}.markdup.bam",
+            threads = 3
     }
 
     call picard.CollectWgsMetrics as tumorCollectMetrics {
