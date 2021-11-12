@@ -113,12 +113,7 @@ workflow WGSinCancerDiagnostics {
                     "normal_1_R1.fastq.gz",
                     "normal_2_R1.fastq.gz",
                     "normal_3_R1.fastq.gz",
-                    "normal_4_R1.fastq.gz",
-                    "normal_5_R1.fastq.gz",
-                    "normal_6_R1.fastq.gz",
-                    "normal_7_R1.fastq.gz",
-                    "normal_8_R1.fastq.gz",
-                    "normal_9_R1.fastq.gz",
+                    "normal_4_R1.fastq.gz"
                 ]
         }
 
@@ -130,12 +125,7 @@ workflow WGSinCancerDiagnostics {
                     "normal_1_R2.fastq.gz",
                     "normal_2_R2.fastq.gz",
                     "normal_3_R2.fastq.gz",
-                    "normal_4_R2.fastq.gz",
-                    "normal_5_R2.fastq.gz",
-                    "normal_6_R2.fastq.gz",
-                    "normal_7_R2.fastq.gz",
-                    "normal_8_R2.fastq.gz",
-                    "normal_9_R2.fastq.gz",
+                    "normal_4_R2.fastq.gz"
                 ]
         }
 
@@ -224,6 +214,16 @@ workflow WGSinCancerDiagnostics {
                     "tumor_7_R1.fastq.gz",
                     "tumor_8_R1.fastq.gz",
                     "tumor_9_R1.fastq.gz",
+                    "tumor_10_R1.fastq.gz",
+                    "tumor_11_R1.fastq.gz",
+                    "tumor_12_R1.fastq.gz",
+                    "tumor_13_R1.fastq.gz",
+                    "tumor_14_R1.fastq.gz",
+                    "tumor_15_R1.fastq.gz",
+                    "tumor_16_R1.fastq.gz",
+                    "tumor_17_R1.fastq.gz",
+                    "tumor_18_R1.fastq.gz",
+                    "tumor_19_R1.fastq.gz"
                 ]
         }
 
@@ -241,6 +241,16 @@ workflow WGSinCancerDiagnostics {
                     "tumor_7_R2.fastq.gz",
                     "tumor_8_R2.fastq.gz",
                     "tumor_9_R2.fastq.gz",
+                    "tumor_10_R2.fastq.gz",
+                    "tumor_11_R2.fastq.gz",
+                    "tumor_12_R2.fastq.gz",
+                    "tumor_13_R2.fastq.gz",
+                    "tumor_14_R2.fastq.gz",
+                    "tumor_15_R2.fastq.gz",
+                    "tumor_16_R2.fastq.gz",
+                    "tumor_17_R2.fastq.gz",
+                    "tumor_18_R2.fastq.gz",
+                    "tumor_19_R2.fastq.gz"
                 ]
         }
 
