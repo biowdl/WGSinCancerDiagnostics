@@ -28,6 +28,7 @@ import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
 import "tasks/deconstructsigs.wdl" as deconstructSigs
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
+import "tasks/fastqsplitter.wdl" as fastqplitter
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
 import "tasks/peach.wdl" as peachTask
@@ -103,7 +104,52 @@ workflow WGSinCancerDiagnostics {
 
     # Normal sample
 
-    scatter (normalReadgroup in normalReadgroups) {
+    if (length(normalReadgroups) == 1) {
+        call fastqplitter.Fastqsplitter as normalSplit1 {
+            input:
+                inputFastq = normalReadgroups[0].read1,
+                outputPaths = [
+                    "normal_0_R1.fastq.gz",
+                    "normal_1_R1.fastq.gz",
+                    "normal_2_R1.fastq.gz",
+                    "normal_3_R1.fastq.gz",
+                    "normal_4_R1.fastq.gz",
+                    "normal_5_R1.fastq.gz",
+                    "normal_6_R1.fastq.gz",
+                    "normal_7_R1.fastq.gz",
+                    "normal_8_R1.fastq.gz",
+                    "normal_9_R1.fastq.gz",
+                ]
+        }
+
+        call fastqplitter.Fastqsplitter as normalSplit2 {
+            input:
+                inputFastq = normalReadgroups[0].read2,
+                outputPaths = [
+                    "normal_0_R2.fastq.gz",
+                    "normal_1_R2.fastq.gz",
+                    "normal_2_R2.fastq.gz",
+                    "normal_3_R2.fastq.gz",
+                    "normal_4_R2.fastq.gz",
+                    "normal_5_R2.fastq.gz",
+                    "normal_6_R2.fastq.gz",
+                    "normal_7_R2.fastq.gz",
+                    "normal_8_R2.fastq.gz",
+                    "normal_9_R2.fastq.gz",
+                ]
+        }
+
+        scatter (normalChunk in zip(normalSplit1.chunks, normalSplit2.chunks)) {
+            Readgroup chunkedNormalFastq = {
+                "id": normalReadgroups[0].id,
+                "library": normalReadgroups[0].id,
+                "read1": normalChunk.left,
+                "read2": normalChunk.right
+            }
+        }
+    }
+
+    scatter (normalReadgroup in select_first([chunkedNormalFastq, normalReadgroups])) {
         call qc.QC as normalQC {
             input:
                 read1 = normalReadgroup.read1,
@@ -163,7 +209,52 @@ workflow WGSinCancerDiagnostics {
 
     # Tumor sample
 
-    scatter (tumorReadgroup in tumorReadgroups) {
+    if (length(tumorReadgroups) == 1) {
+        call fastqplitter.Fastqsplitter as tumorSplit1 {
+            input:
+                inputFastq = tumorReadgroups[0].read1,
+                outputPaths = [
+                    "tumor_0_R1.fastq.gz",
+                    "tumor_1_R1.fastq.gz",
+                    "tumor_2_R1.fastq.gz",
+                    "tumor_3_R1.fastq.gz",
+                    "tumor_4_R1.fastq.gz",
+                    "tumor_5_R1.fastq.gz",
+                    "tumor_6_R1.fastq.gz",
+                    "tumor_7_R1.fastq.gz",
+                    "tumor_8_R1.fastq.gz",
+                    "tumor_9_R1.fastq.gz",
+                ]
+        }
+
+        call fastqplitter.Fastqsplitter as tumorSplit2 {
+            input:
+                inputFastq = tumorReadgroups[0].read2,
+                outputPaths = [
+                    "tumor_0_R2.fastq.gz",
+                    "tumor_1_R2.fastq.gz",
+                    "tumor_2_R2.fastq.gz",
+                    "tumor_3_R2.fastq.gz",
+                    "tumor_4_R2.fastq.gz",
+                    "tumor_5_R2.fastq.gz",
+                    "tumor_6_R2.fastq.gz",
+                    "tumor_7_R2.fastq.gz",
+                    "tumor_8_R2.fastq.gz",
+                    "tumor_9_R2.fastq.gz",
+                ]
+        }
+
+        scatter (tumorChunk in zip(tumorSplit1.chunks, tumorSplit2.chunks)) {
+            Readgroup chunkedtumorFastq = {
+                "id": tumorReadgroups[0].id,
+                "library": tumorReadgroups[0].id,
+                "read1": tumorChunk.left,
+                "read2": tumorChunk.right
+            }
+        }
+    }
+
+    scatter (tumorReadgroup in select_first([chunkedtumorFastq, tumorReadgroups])) {
         call qc.QC as tumorQC {
             input:
                 read1 = tumorReadgroup.read1, 
@@ -705,5 +796,5 @@ struct Readgroup {
     String id
     String library
     File read1
-    File? read2
+    File read2
 }
