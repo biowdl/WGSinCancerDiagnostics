@@ -99,9 +99,6 @@ workflow WGSinCancerDiagnostics {
         File peachPanelJson
         File driverGeneBed
         File cosmicSignatures
-
-        File? purpleRecoverySVOverride
-        File? purpleRecoverySVOverrideIndex
     }
     meta {allowNestedInputs: true}
 
@@ -578,8 +575,8 @@ workflow WGSinCancerDiagnostics {
             somaticVcf = somaticAnnotation.outputVcf,
             germlineVcf = germlineAnnotation.outputVcf,
             filteredSvVcf = gripssFilter.outputVcf,
-            #fullSvVcf = select_first([purpleRecoverySVOverride,structuralVariants.vcf]),
-            #fullSvVcfIndex = select_first([purpleRecoverySVOverrideIndex,structuralVariants.vcfIndex]),
+            fullSvVcf = gripss.outputVcf,
+            fullSvVcfIndex = gripss.outputVcfIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
