@@ -659,6 +659,8 @@ workflow WGSinCancerDiagnostics {
             bam = tumorMarkdup.outputBam,
             bamIndex = tumorMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
+            referenceFastaDict = referenceFastaDict,
+            referenceFastaFai = referenceFastaFai,
             referenceImg = referenceImg,
             virusbreakendDB = virusbreakendDB
     }
