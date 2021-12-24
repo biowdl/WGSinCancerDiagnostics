@@ -99,6 +99,7 @@ workflow WGSinCancerDiagnostics {
         File peachPanelJson
         File driverGeneBed
         File cosmicSignatures
+        Boolean runAdapterClipping = false
     }
     meta {allowNestedInputs: true}
 
@@ -145,7 +146,7 @@ workflow WGSinCancerDiagnostics {
                 read1 = normalReadgroup.read1,
                 read2 = normalReadgroup.read2,
                 outputDir = "./QC",
-                runAdapterClipping = false
+                runAdapterClipping = runAdapterClipping
         }
 
         call bwa.Mem as normalBwaMem {
@@ -271,7 +272,7 @@ workflow WGSinCancerDiagnostics {
                 read1 = tumorReadgroup.read1, 
                 read2 = tumorReadgroup.read2,
                 outputDir = "./QC",
-                runAdapterClipping = false
+                runAdapterClipping = runAdapterClipping
         }
 
         call bwa.Mem as tumorBwaMem {
