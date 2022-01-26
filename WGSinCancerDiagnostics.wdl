@@ -152,7 +152,7 @@ workflow WGSinCancerDiagnostics {
         call bwa.Mem as normalBwaMem {
             input:
                 read1 = if runAdapterClipping then normalQC.qcRead1 else normalReadgroup.read1, # not using QC output since it's the same as the raw (allows more parallelization)
-                read2 = if runAdapterClipping then normalQC.qcRead2 elsenormalReadgroup.read2,
+                read2 = if runAdapterClipping then normalQC.qcRead2 else normalReadgroup.read2,
                 readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
                 bwaIndex = bwaIndex,
                 threads = 8,
