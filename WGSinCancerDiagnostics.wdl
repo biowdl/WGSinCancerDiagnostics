@@ -333,9 +333,9 @@ workflow WGSinCancerDiagnostics {
             tumorName = normalName,
             tumorBam = normalMarkdup.outputBam,
             tumorBamIndex = normalMarkdup.outputBamIndex,
-            normalName = tumorName,
-            normalBam = tumorMarkdup.outputBam,
-            normalBamIndex = tumorMarkdup.outputBamIndex,
+            referenceName = tumorName,
+            referenceBam = tumorMarkdup.outputBam,
+            referenceBamIndex = tumorMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -428,9 +428,9 @@ workflow WGSinCancerDiagnostics {
             tumorName = tumorName,
             tumorBam = tumorMarkdup.outputBam,
             tumorBamIndex = tumorMarkdup.outputBamIndex,
-            normalName = normalName,
-            normalBam = normalMarkdup.outputBam,
-            normalBamIndex = normalMarkdup.outputBamIndex,
+            referenceName = normalName,
+            referenceBam = normalMarkdup.outputBam,
+            referenceBamIndex = normalMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -529,7 +529,7 @@ workflow WGSinCancerDiagnostics {
         input:
             inputVcf = viralAnnotation.outputVcf,
             tumorName = tumorName,
-            normalName = normalName,
+            referenceName = normalName,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -545,9 +545,9 @@ workflow WGSinCancerDiagnostics {
 
     call hmftools.Amber as amber {
         input:
-            normalName = normalName,
-            normalBam = normalMarkdup.outputBam,
-            normalBamIndex = normalMarkdup.outputBamIndex,
+            referenceName = normalName,
+            referenceBam = normalMarkdup.outputBam,
+            referenceBamIndex = normalMarkdup.outputBamIndex,
             tumorName = tumorName,
             tumorBam = tumorMarkdup.outputBam,
             tumorBamIndex = tumorMarkdup.outputBamIndex,
@@ -559,9 +559,9 @@ workflow WGSinCancerDiagnostics {
 
     call hmftools.Cobalt as cobalt {
         input:
-            normalName = normalName,
-            normalBam = normalMarkdup.outputBam,
-            normalBamIndex = normalMarkdup.outputBamIndex,
+            referenceName = normalName,
+            referenceBam = normalMarkdup.outputBam,
+            referenceBamIndex = normalMarkdup.outputBamIndex,
             tumorName = tumorName,
             tumorBam = tumorMarkdup.outputBam,
             tumorBamIndex = tumorMarkdup.outputBamIndex,
@@ -570,7 +570,7 @@ workflow WGSinCancerDiagnostics {
 
     call hmftools.Purple as purple {
         input:
-            normalName = normalName,
+            referenceName = normalName,
             tumorName = tumorName,
             amberOutput = amber.outputs,
             cobaltOutput = cobalt.outputs,
@@ -629,9 +629,9 @@ workflow WGSinCancerDiagnostics {
 
     call hmftools.HealthChecker as healthChecker {
         input:
-            normalName = normalName,
-            normalFlagstats = normalFlagstat.stats,
-            normalMetrics = normalCollectMetrics.metrics,
+            referenceName = normalName,
+            referenceFlagstats = normalFlagstat.stats,
+            referenceMetrics = normalCollectMetrics.metrics,
             tumorName = tumorName,
             tumorFlagstats= tumorFlagstat.stats,
             tumorMetrics = tumorCollectMetrics.metrics,
@@ -681,10 +681,10 @@ workflow WGSinCancerDiagnostics {
         input:
             refGenomeVersion = if hg38 then "38" else "37",
             tumorName = tumorName,
-            normalName = normalName,
+            referenceName = normalName,
             sampleDoids = sampleDoids,
             serveActionability = serveActionability,
-            doidsJson = doidsJson,
+            doidJson = doidsJson,
             purplePurity = purple.purplePurityTsv,
             purpleQc = purple.purpleQc,
             purpleDriverCatalogSomatic = purple.driverCatalogSomaticTsv,
@@ -732,7 +732,7 @@ workflow WGSinCancerDiagnostics {
         File HRDprediction = sigAndHRD.chordPrediction
         File signatures = sigAndHRD.chordSignatures
         File signatureRDS = signatureWeights.signatureRDS
-        File healthChecks = select_first([healthChecker.healthCheckSucceeded, healthChecker.healthCheckFailed])
+        File healthChecks = healthChecker.outputFile
         File cupData = cuppa.cupData
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
