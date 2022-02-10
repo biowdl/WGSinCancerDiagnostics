@@ -100,6 +100,7 @@ workflow WGSinCancerDiagnostics {
         File driverGeneBed
         File cosmicSignatures
         Boolean runAdapterClipping = false
+        File knownFusionPairBedpe
     }
     meta {allowNestedInputs: true}
 
@@ -515,22 +516,18 @@ workflow WGSinCancerDiagnostics {
             viralReferenceImg = viralReferenceImg
     }
 
-    call hmftools.GripssApplicationKt as gripss {
+    call hmftools.Gripss as gripss {
         input:
-            inputVcf = viralAnnotation.outputVcf,
-            tumorName = tumorName,
-            referenceName = normalName,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
-            breakpointHotspot = breakpointHotspot,
+            knownFusionPairBedpe = knownFusionPairBedpe,
             breakendPon = breakendPon,
-            breakpointPon = breakpointPon
-    }
-
-    call hmftools.GripssHardFilterApplicationKt as gripssFilter {
-        input:
-            inputVcf = gripss.outputVcf
+            breakpointPon = breakpointPon,
+            referenceName = normalName,
+            tumorName = tumorName,
+            vcf = viralAnnotation.outputVcf,
+            vcfIndex = viralAnnotation.outputVcfIndex
     }
 
     call hmftools.Amber as amber {
@@ -567,9 +564,10 @@ workflow WGSinCancerDiagnostics {
             gcProfile = gcProfile,
             somaticVcf = somaticAnnotation.outputVcf,
             germlineVcf = germlineAnnotation.outputVcf,
-            filteredSvVcf = gripssFilter.outputVcf,
-            fullSvVcf = gripss.outputVcf,
-            fullSvVcfIndex = gripss.outputVcfIndex,
+            filteredSvVcf = gripss.filteredVcf,
+            filteredSvVcfIndex = gripss.filteredVcfIndex,
+            fullSvVcf = gripss.fullVcf,
+            fullSvVcfIndex = gripss.fullVcfIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -606,8 +604,8 @@ workflow WGSinCancerDiagnostics {
             sampleName = tumorName,
             snvIndelVcf = somaticAnnotation.outputVcf,
             snvIndelVcfIndex = somaticAnnotation.outputVcfIndex,
-            svVcf = gripssFilter.outputVcf,
-            svVcfIndex = gripssFilter.outputVcfIndex,
+            svVcf = gripss.filteredVcf,
+            svVcfIndex = gripss.filteredVcfIndex,
             hg38 = hg38
     }
 
@@ -704,12 +702,14 @@ workflow WGSinCancerDiagnostics {
     output {
         Array[File] normalQcReports = flatten(normalQC.reports)
         Array[File] tumorQcReports = flatten(tumorQC.reports)
-        File structuralVariantsVcf = gripssFilter.outputVcf
-        File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
+        # FIXME these might be unnecessary, since purple contains these results as well
+        File structuralVariantsVcf = gripss.filteredVcf
+        File structuralVariantsVcfIndex = gripss.filteredVcfIndex
         File somaticVcf = somaticAnnotation.outputVcf
         File somaticVcfIndex = somaticAnnotation.outputVcfIndex
         File germlineVcf = germlineAnnotation.outputVcf
         File germlineVcfIndex = germlineAnnotation.outputVcfIndex
+        # FIXME till here
         File normalBam = normalMarkdup.outputBam
         File normalBamIndex = normalMarkdup.outputBamIndex
         File tumorBam = tumorMarkdup.outputBam
