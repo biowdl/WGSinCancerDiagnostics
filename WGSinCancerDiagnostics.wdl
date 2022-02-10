@@ -401,25 +401,20 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.blacklistRegionAnnotated.blacklistSiteAnnotated.vcf.gz"
     }
 
-    call snpEff.SnpEff as germlineAnnotation {
+    call hmftools.Pave as germlineAnnotation {
         input:
-            vcf = germlineBlacklistSiteAnnotation.outputVcf,
-            vcfIndex = select_first([germlineBlacklistSiteAnnotation.outputVcfIndex]),
-            genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
-            datadirZip = snpEffDataDirZip,
-            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.blacklistRegionAnnotated.blacklistSiteAnnotated.snpeff.vcf",
-            hgvs = true,
-            lof = true,
-            noDownstream = true,
-            noIntergenic = true,
-            noShiftHgvs = true,
-            upDownStreamLen = 1000
-    }
-
-    call samtools.BgzipAndIndex as germlineCompressed {
-        input:
-            inputFile = germlineAnnotation.outputVcf,
-            outputDir = "."
+            sampleName = tumorName, #Hartwig pipeline give tumor sample name even for germline pave run
+            vcfFile = germlineBlacklistSiteAnnotation.outputVcf,
+            vcfFileIndex = select_first([germlineBlacklistSiteAnnotation.outputVcfIndex]),
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            refGenomeVersion = if hg38 then "38" else "37",
+            driverGenePanel = panelTsv,
+            geneDataCsv = geneDataCsv,
+            proteinFeaturesCsv = proteinFeaturesCsv,
+            transExonDataCsv = transExonDataCsv,
+            transSpliceDataCsv = transSpliceDataCsv
     }
 
     # somatic calling on pair
@@ -476,25 +471,20 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./sage.passFilter.mappabilityAnnotated.ponFilter.vcf.gz"
     }
 
-    call snpEff.SnpEff as somaticAnnotation {
+    call hmftools.Pave as somaticAnnotation {
         input:
-            vcf = ponFilter.outputVcf,
-            vcfIndex = ponFilter.outputVcfIndex,
-            genomeVersion = if hg38 then "GRCh38.99" else "GRCh37.75",
-            datadirZip = snpEffDataDirZip,
-            outputPath = "./sage.passFilter.mappabilityAnnotated.ponFilter.snpeff.vcf",
-            hgvs = true,
-            lof = true,
-            noDownstream = true,
-            noIntergenic = true,
-            noShiftHgvs = true,
-            upDownStreamLen = 1000
-    }
-
-    call samtools.BgzipAndIndex as somaticCompressed {
-        input:
-            inputFile = somaticAnnotation.outputVcf,
-            outputDir = "."
+            sampleName = tumorName, #Hartwig pipeline give tumor sample name even for germline pave run
+            vcfFile = ponFilter.outputVcf,
+            vcfFileIndex = ponFilter.outputVcfIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            refGenomeVersion = if hg38 then "38" else "37",
+            driverGenePanel = panelTsv,
+            geneDataCsv = geneDataCsv,
+            proteinFeaturesCsv = proteinFeaturesCsv,
+            transExonDataCsv = transExonDataCsv,
+            transSpliceDataCsv = transSpliceDataCsv
     }
 
     call gridss.GRIDSS as structuralVariants {
@@ -614,8 +604,8 @@ workflow WGSinCancerDiagnostics {
     call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
         input:
             sampleName = tumorName,
-            snvIndelVcf = somaticCompressed.compressed,
-            snvIndelVcfIndex = somaticCompressed.index,
+            snvIndelVcf = somaticAnnotation.outputVcf,
+            snvIndelVcfIndex = somaticAnnotation.outputVcfIndex,
             svVcf = gripssFilter.outputVcf,
             svVcfIndex = gripssFilter.outputVcfIndex,
             hg38 = hg38
@@ -716,10 +706,10 @@ workflow WGSinCancerDiagnostics {
         Array[File] tumorQcReports = flatten(tumorQC.reports)
         File structuralVariantsVcf = gripssFilter.outputVcf
         File structuralVariantsVcfIndex = gripssFilter.outputVcfIndex
-        File somaticVcf = somaticCompressed.compressed
-        File somaticVcfIndex = somaticCompressed.index
-        File germlineVcf = germlineCompressed.compressed
-        File germlineVcfIndex = germlineCompressed.index
+        File somaticVcf = somaticAnnotation.outputVcf
+        File somaticVcfIndex = somaticAnnotation.outputVcfIndex
+        File germlineVcf = germlineAnnotation.outputVcf
+        File germlineVcfIndex = germlineAnnotation.outputVcfIndex
         File normalBam = normalMarkdup.outputBam
         File normalBamIndex = normalMarkdup.outputBamIndex
         File tumorBam = tumorMarkdup.outputBam
