@@ -70,7 +70,7 @@ workflow WGSinCancerDiagnostics {
         File mappabilityHdr
         File fragileSiteCsv
         File lineElementCsv
-        File replicationOriginsBed 
+        File replicationOriginsBed
         File viralHostsCsv
         File knownFusionCsv
         File geneDataCsv
@@ -172,7 +172,7 @@ workflow WGSinCancerDiagnostics {
     }
 
     call picard.CollectWgsMetrics as normalCollectMetrics {
-        input: 
+        input:
             inputBam = normalMarkdup.outputBam,
             inputBamIndex = normalMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
@@ -270,7 +270,7 @@ workflow WGSinCancerDiagnostics {
     scatter (tumorReadgroup in select_first([chunkedtumorFastq, tumorReadgroups])) {
         call qc.QC as tumorQC {
             input:
-                read1 = tumorReadgroup.read1, 
+                read1 = tumorReadgroup.read1,
                 read2 = tumorReadgroup.read2,
                 outputDir = "./QC",
                 runAdapterClipping = runAdapterClipping
@@ -298,7 +298,7 @@ workflow WGSinCancerDiagnostics {
     }
 
     call picard.CollectWgsMetrics as tumorCollectMetrics {
-        input: 
+        input:
             inputBam = tumorMarkdup.outputBam,
             inputBamIndex = tumorMarkdup.outputBamIndex,
             referenceFasta = referenceFasta,
@@ -355,7 +355,7 @@ workflow WGSinCancerDiagnostics {
             coverageBed = germlineCoveragePanel,
             panelOnly = true
     }
-    
+
     call bcftools.Filter as germlinePassFilter {
         input:
             vcf = germlineSage.outputVcf,
@@ -363,7 +363,7 @@ workflow WGSinCancerDiagnostics {
             include = "'FILTER=\"PASS\"'",
             outputPath = "./germlineSage.passFilter.vcf.gz"
     }
-    
+
     call bcftools.Annotate as germlineMappabilityAnnotation {
         input:
             annsFile = mappabilityBed,
@@ -573,7 +573,11 @@ workflow WGSinCancerDiagnostics {
             referenceFastaDict = referenceFastaDict,
             driverGenePanel = panelTsv,
             somaticHotspots = somaticHotspots,
-            germlineHotspots = germlineHotspots
+            germlineHotspots = germlineHotspots,
+            geneDataCsv = geneDataCsv,
+            proteinFeaturesCsv = proteinFeaturesCsv,
+            transExonDataCsv = transExonDataCsv,
+            transSpliceDataCsv = transSpliceDataCsv
 
             # TODO if shallow also the following:
             #-highly_diploid_percentage 0.88 \
