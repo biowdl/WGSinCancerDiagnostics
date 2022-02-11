@@ -70,8 +70,6 @@ workflow WGSinCancerDiagnostics {
         File mappabilityHdr
         File fragileSiteCsv
         File lineElementCsv
-        File replicationOriginsBed
-        File viralHostsCsv
         File knownFusionCsv
         File geneDataCsv
         File proteinFeaturesCsv
