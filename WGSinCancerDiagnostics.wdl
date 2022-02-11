@@ -693,7 +693,6 @@ workflow WGSinCancerDiagnostics {
 
     call peachTask.Peach as peach {
         input:
-            transcriptTsv = peachTranscriptTsv,
             germlineVcf= purple.purpleGermlineVcf,
             germlineVcfIndex = purple.purpleGermlineVcfIndex,
             tumorName = tumorName,
