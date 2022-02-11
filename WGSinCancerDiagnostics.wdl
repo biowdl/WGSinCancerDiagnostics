@@ -53,7 +53,6 @@ workflow WGSinCancerDiagnostics {
         File somaticHotspots
         File somaticCodingPanel
         File highConfidenceBed
-        File snpEffDataDirZip
         File viralReference
         File viralReferenceFai
         File viralReferenceDict
@@ -97,9 +96,11 @@ workflow WGSinCancerDiagnostics {
         File peachPanelJson
         File driverGeneBed
         File cosmicSignatures
-        Boolean runAdapterClipping = false
         File knownFusionPairBedpe
+        
+        Boolean runAdapterClipping = false
     }
+    
     meta {allowNestedInputs: true}
 
     # Normal sample
