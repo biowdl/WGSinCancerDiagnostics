@@ -594,6 +594,7 @@ workflow WGSinCancerDiagnostics {
             lineElementCsv = lineElementCsv,
             knownFusionCsv = knownFusionCsv,
             driverGenePanel = panelTsv,
+            writeAllVisFusions = true,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
