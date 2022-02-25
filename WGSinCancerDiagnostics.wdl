@@ -601,6 +601,14 @@ workflow WGSinCancerDiagnostics {
             transSpliceDataCsv = transSpliceDataCsv
     }
 
+    call hmftools.LinxVisualisations as linxVisualisations {
+        input:
+            sample = tumorName,
+            refGenomeVersion = if hg38 then "38" else "37",
+            linxOutput = linx.outputs,
+            plotReportable = false #TODO might need to be enabled
+    }
+
     call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
         input:
             sampleName = tumorName,
