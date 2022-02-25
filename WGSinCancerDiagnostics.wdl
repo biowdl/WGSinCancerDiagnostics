@@ -728,6 +728,8 @@ workflow WGSinCancerDiagnostics {
         Array[File] purpleOutput = purple.outputs
         Array[File] purplePlots = purple.plots
         Array[File] linxOutput = linx.outputs
+        Array[File] linxPlots = linxVisualisations.plots
+        Array[File] linxCircos = linxVisualisations.circos
         File HRDprediction = sigAndHRD.chordPrediction
         File signatures = sigAndHRD.chordSignatures
         File signatureRDS = signatureWeights.signatureRDS
