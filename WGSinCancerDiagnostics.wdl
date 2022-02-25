@@ -87,8 +87,7 @@ workflow WGSinCancerDiagnostics {
         Array[File]+ cuppaReferenceData
         File virusbreakendDB
         File taxonomyDbTsv
-        File virusInterpretationTsv
-        File virusBlacklistTsv
+        File virusReportingDbTsv
         Array[String]+ sampleDoids
         Array[File]+ serveActionability
         File doidsJson
@@ -669,10 +668,12 @@ workflow WGSinCancerDiagnostics {
     call hmftools.VirusInterpreter as virusInterpreter {
         input:
             sampleId = tumorName,
+            purplePurityTsv = purple.purplePurityTsv,
+            prupleQcFile = purple.purpleQc,
+            tumorSampleWgsMetricsFile = tumorCollectMetrics.metrics,
             virusBreakendTsv = virusbreakend.summary,
             taxonomyDbTsv = taxonomyDbTsv,
-            virusInterpretationTsv = virusInterpretationTsv,
-            virusBlacklistTsv = virusBlacklistTsv
+            virusReportingDbTsv = virusReportingDbTsv
     }
 
     call hmftools.Protect as protect {
