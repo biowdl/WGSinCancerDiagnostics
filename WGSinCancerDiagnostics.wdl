@@ -96,7 +96,9 @@ workflow WGSinCancerDiagnostics {
         File driverGeneBed
         File cosmicSignatures
         File knownFusionPairBedpe
-        
+        File cohortMapping
+        File cohortPercentiles
+
         Boolean runAdapterClipping = false
     }
     
@@ -654,6 +656,12 @@ workflow WGSinCancerDiagnostics {
             cupData = cuppa.cupData
     }
 
+    call hmftools.CupGenerateReport as cupGenerateReport {
+        input:
+            sampleName = tumorName,
+            cupData = cuppa.cupData
+    }
+
     call gridss.Virusbreakend as virusbreakend {
         input:
             bam = tumorMarkdup.outputBam,
@@ -709,6 +717,45 @@ workflow WGSinCancerDiagnostics {
             panelJson = peachPanelJson
     }
 
+    call hmftools.Orange as orange {
+        input:
+            doidJson = doidsJson,
+            sampleDoids = sampleDoids,
+            tumorName = tumorName,
+            referenceName = normalName,
+            referenceMetrics = normalCollectMetrics.metrics,
+            tumorMetrics = tumorCollectMetrics.metrics,
+            referenceFlagstats = normalFlagstat.stats,
+            tumorFlagstats = tumorFlagstat.stats,
+            sageGermlineGeneCoverageTsv = germlineSage.sageGeneCoverageTsv,
+            sageSomaticRefSampleBqrPlot = select_first([somaticVariants.referenceSageBqrPng]),
+            sageSomaticTumorSampleBqrPlot = somaticVariants.tumorSageBqrPng,
+            purpleGeneCopyNumberTsv = purple.purpleCnvGeneTsv,
+            purpleGermlineDriverCatalogTsv = purple.driverCatalogGermlineTsv,
+            purpleGermlineVariantVcf = purple.purpleGermlineVcf,
+            purpleGermlineVariantVcfIndex = purple.purpleGermlineVcfIndex,
+            purplePlots = purple.plots,
+            purplePurityTsv = purple.purplePurityTsv,
+            purpleQcFile = purple.purpleQc,
+            purpleSomaticDriverCatalogTsv = purple.driverCatalogSomaticTsv,
+            purpleSomaticVariantVcf = purple.purpleSomaticVcf,
+            purpleSomaticVariantVcfIndex = purple.purpleSomaticVcfIndex,
+            linxFusionTsv = linx.linxFusion,
+            linxBreakendTsv = linx.linxBreakend,
+            linxDriverCatalogTsv = linx.driverCatalog,
+            linxDriverTsv = linx.linxDrivers,
+            linxPlots = linxVisualisations.plots,
+            cuppaResultCsv = cuppa.cupData,
+            cuppaSummaryPlot = cupGenerateReport.summaryPng,
+            cuppaFeaturePlot = cupGenerateReport.featuresPng,
+            chordPredictionTxt = sigAndHRD.chordPrediction,
+            peachGenotypeTsv = peach.genotypeTsv,
+            protectEvidenceTsv = protect.protectTsv,
+            annotatedVirusTsv = virusInterpreter.virusAnnotatedTsv,
+            cohortMappingTsv = cohortMapping,
+            cohortPercentilesTsv = cohortPercentiles
+    }
+
     output {
         Array[File] normalQcReports = flatten(normalQC.reports)
         Array[File] tumorQcReports = flatten(tumorQC.reports)
@@ -749,6 +796,8 @@ workflow WGSinCancerDiagnostics {
         File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
         File protectTsv = protect.protectTsv
         Array[File] peachOutput = peach.outputs
+        File orangeJson = orange.orangeJson
+        File orangePdf = orange.orangePdf
     }
 }
 
