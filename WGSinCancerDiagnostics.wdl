@@ -756,6 +756,13 @@ workflow WGSinCancerDiagnostics {
             cohortPercentilesTsv = cohortPercentiles
     }
 
+    call MakeReportedVCF as makeReportedVCF {
+        input:
+            purpleGermlineVcf = purple.purpleGermlineVcf,
+            purpleSomaticVcf = purple.purpleSomaticVcf,
+            tumorName = tumorName
+    }
+
     output {
         Array[File] normalQcReports = flatten(normalQC.reports)
         Array[File] tumorQcReports = flatten(tumorQC.reports)
@@ -798,6 +805,7 @@ workflow WGSinCancerDiagnostics {
         Array[File] peachOutput = peach.outputs
         File orangeJson = orange.orangeJson
         File orangePdf = orange.orangePdf
+        File combinedVCF = makeReportedVCF.vcf
     }
 }
 
@@ -855,6 +863,38 @@ task PonFilter {
         dockerImage: {description: "The docker image used for this task. Changing this may result in errors which the developers may choose not to address.", category: "advanced"}
         memory: {description: "The amount of memory this job will use.", category: "advanced"}
         timeMinutes: {description: "The maximum amount of time the job will run in minutes.", category: "advanced"}
+    }
+}
+
+task MakeReportedVCF {
+    input {
+        File purpleGermlineVcf
+        File purpleSomaticVcf
+        File tumorName
+    }
+
+    command <<<
+        set -e
+        zcat ~{purpleSomaticVcf} | egrep "^##" > ~{tumorName}.reportedVAR.vcf
+        echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTOPAS04T" >> ~{tumorName}.reportedVAR.vcf
+        zcat ~{purpleSomaticVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $11}' FS='\t' OFS='\t' >> ~{tumorName}.reportedVAR.vcf
+        zcat ~{purpleGermlineVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}' FS='\t' OFS='\t' | sed "s#\./\.#0/1#" >> ~{tumorName}.reportedVAR.vcf
+    >>>
+
+    output {
+        File vcf = "~{tumorName}.reportedVAR.vcf"
+    }
+
+    runtime {
+        memory: "4G"
+        timeMinutes: 15
+        docker: "Ubuntu:22.04"
+    }
+
+    parameter_meta {
+        purpleGermlineVcf: {description: "The germline VCF produced by purple.", category: "required"}
+        purpleSomaticVcf: {description: "The somatic VCF produced by purple.", category: "required"}
+        tumorName: {description: "The name of the tumor sample.", category: "required"}
     }
 }
 
