@@ -888,7 +888,7 @@ task MakeReportedVCF {
     runtime {
         memory: "4G"
         timeMinutes: 15
-        docker: "Ubuntu:22.04"
+        docker: "ubuntu:22.04"
     }
 
     parameter_meta {
