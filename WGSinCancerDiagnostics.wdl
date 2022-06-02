@@ -792,6 +792,9 @@ workflow WGSinCancerDiagnostics {
         File cupData = cuppa.cupData
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
+        File cupSummaryPng = cupGenerateReport.summaryPng
+        File? cupFeaturesPng = cupGenerateReport.featuresPng
+        File cupReportPdf = cupGenerateReport.reportPdf
         File tumorMetrics = tumorCollectMetrics.metrics
         File tumorFlagstats = tumorFlagstat.stats
         File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
