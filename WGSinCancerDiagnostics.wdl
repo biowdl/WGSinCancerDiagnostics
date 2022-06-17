@@ -107,7 +107,7 @@ workflow WGSinCancerDiagnostics {
 
     scatter (normalrg in normalReadgroups) {File normalFastqs = normalrg.read1}
     scatter (tumorrg in normalReadgroups) {File tumorFastqs = tumorrg.read1}
-    Int totalFastqSize = ceil(size([normalFastqs, tumorFastqs], "G"))
+    Int totalFastqSize = ceil(size(flatten([normalFastqs, tumorFastqs]), "G"))
 
     # Normal sample
 
