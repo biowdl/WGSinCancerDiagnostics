@@ -100,19 +100,19 @@ workflow WGSinCancerDiagnostics {
         File cohortPercentiles
 
         Boolean runAdapterClipping = false
+        Int totalMappingChunks = 25
     }
     
     meta {allowNestedInputs: true}
 
+    scatter (normalrg in normalReadgroups) {File normalFastqs = normalrg.read1}
+    scatter (tumorrg in normalReadgroups) {File tumorFastqs = tumorrg.read1}
+    Int totalFastqSize = ceil(size([normalFastqs, tumorFastqs], "G"))
+
     # Normal sample
 
-    Int normalMappingCpus = 40
-    scatter (normalReadgroup in normalReadgroups) {File normalFastqs = normalReadgroup.read1}
-    Int totalSizeNormal = ceil(size(normalFastqs, "G"))
-
     scatter (normalReadgroup in normalReadgroups) {
-        Int numberOfCpusNormal = ceil(normalMappingCpus * (size(normalReadgroup.read1, "G")  / totalSizeNormal))
-        Int numberOfChunksNormal = ceil(numberOfCpusNormal / 16)
+        Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
         Array[String] normalChunks = prefix("normal_chunk_", range(numberOfChunksNormal))
         
         scatter (normalChunk in normalChunks) {
@@ -147,7 +147,7 @@ workflow WGSinCancerDiagnostics {
                     read2 = if runAdapterClipping then normalQC.qcRead2 else normalChunkPair.right,
                     readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
-                    threads = 16,
+                    threads = 8,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
                     outputPrefix = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
@@ -194,13 +194,8 @@ workflow WGSinCancerDiagnostics {
 
     # Tumor sample
 
-    Int tumorMappingCpus = 160
-    scatter (tumorReadgroup in tumorReadgroups) {File tumorFastqs = tumorReadgroup.read1}
-    Int totalSizeTumor = ceil(size(tumorFastqs, "G"))
-
     scatter (tumorReadgroup in tumorReadgroups) {
-        Int numberOfCpusTumor = ceil(tumorMappingCpus * (size(tumorReadgroup.read1, "G")  / totalSizeTumor))
-        Int numberOfChunksTumor = ceil(numberOfCpusTumor / 16)
+        Int numberOfChunksTumor = ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
         Array[String] tumorChunks = prefix("tumor_chunk_", range(numberOfChunksTumor))
         
         scatter (tumorChunk in tumorChunks) {
@@ -235,7 +230,7 @@ workflow WGSinCancerDiagnostics {
                     read2 = if runAdapterClipping then tumorQC.qcRead2 else tumorChunkPair.right,
                     readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
-                    threads = 16,
+                    threads = 8,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
                     outputPrefix = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
