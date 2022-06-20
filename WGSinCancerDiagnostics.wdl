@@ -128,7 +128,7 @@ workflow WGSinCancerDiagnostics {
 
         call fastqsplitter.Fastqsplitter as normalSplit2 {
             input:
-                inputFastq = normalReadgroups[0].read2,
+                inputFastq = normalReadgroup.read2,
                 outputPaths = normalChunkPathsR2
         }
 
@@ -211,7 +211,7 @@ workflow WGSinCancerDiagnostics {
 
         call fastqsplitter.Fastqsplitter as tumorSplit2 {
             input:
-                inputFastq = tumorReadgroups[0].read2,
+                inputFastq = tumorReadgroup.read2,
                 outputPaths = tumorChunkPathsR2
         }
 
