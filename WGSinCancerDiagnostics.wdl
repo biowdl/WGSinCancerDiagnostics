@@ -113,7 +113,7 @@ workflow WGSinCancerDiagnostics {
 
     scatter (normalReadgroup in normalReadgroups) {
         Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
-        Array[String] normalChunks = prefix("normal_chunk_", range(numberOfChunksNormal))
+        Array[String] normalChunks = prefix("~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_chunk_", range(numberOfChunksNormal))
         
         scatter (normalChunk in normalChunks) {
             String normalChunkPathsR1 = sub(normalChunk, "$", "_R1.fastq.gz")
@@ -196,7 +196,7 @@ workflow WGSinCancerDiagnostics {
 
     scatter (tumorReadgroup in tumorReadgroups) {
         Int numberOfChunksTumor = ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
-        Array[String] tumorChunks = prefix("tumor_chunk_", range(numberOfChunksTumor))
+        Array[String] tumorChunks = prefix("~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_chunk_", range(numberOfChunksTumor))
         
         scatter (tumorChunk in tumorChunks) {
             String tumorChunkPathsR1 = sub(tumorChunk, "$", "_R1.fastq.gz")
