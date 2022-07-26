@@ -343,6 +343,10 @@ workflow WGSinCancerDiagnostics {
             hotspots = germlineHotspots,
             panelBed = germlineCodingPanel,
             highConfidenceBed = highConfidenceBed,
+            geneDataCsv = geneDataCsv,
+            proteinFeaturesCsv = proteinFeaturesCsv,
+            transExonDataCsv = transExonDataCsv,
+            transSpliceDataCsv = transSpliceDataCsv,
             hg38 = hg38,
             outputPath = "./germlineSage.vcf.gz",
             hotspotMinTumorQual = 50,
@@ -364,49 +368,11 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./germlineSage.passFilter.vcf.gz"
     }
 
-    call bcftools.Annotate as germlineMappabilityAnnotation {
-        input:
-            annsFile = mappabilityBed,
-            columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
-            headerLines = mappabilityHdr,
-            inputFile = germlinePassFilter.outputVcf,
-            inputFileIndex = germlinePassFilter.outputVcfIndex,
-            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.vcf.gz"
-    }
-
-    call bcftools.Annotate as germlineClinvarAnnotation {
-        input:
-            annsFile = clinvarVcf,
-            annsFileIndex = clinvarVcfIndex,
-            columns = ["INFO/CLNSIG", "INFO/CLNSIGCONF"],
-            inputFile = germlineMappabilityAnnotation.outputVcf,
-            inputFileIndex = germlineMappabilityAnnotation.outputVcfIndex,
-            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.vcf.gz"
-    }
-
-    call bcftools.Annotate as germlineBlacklistRegionAnnotation {
-        input:
-            annsFile = germlineBlacklistBed,
-            columns = ["CHROM", "FROM", "TO"],
-            inputFile = germlineClinvarAnnotation.outputVcf,
-            inputFileIndex = germlineClinvarAnnotation.outputVcfIndex,
-            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.blacklistRegionAnnotated.vcf.gz"
-    }
-
-    call bcftools.Annotate as germlineBlacklistSiteAnnotation {
-        input:
-            annsFile = germlineBlacklistVcf,
-            annsFileIndex = germlineBlacklistVcfIndex,
-            inputFile = germlineBlacklistRegionAnnotation.outputVcf,
-            inputFileIndex = germlineBlacklistRegionAnnotation.outputVcfIndex,
-            outputPath = "./germlineSage.passFilter.mappabilityAnnotated.clinvarAnnotated.blacklistRegionAnnotated.blacklistSiteAnnotated.vcf.gz"
-    }
-
     call hmftools.Pave as germlineAnnotation {
         input:
             sampleName = tumorName, #Hartwig pipeline give tumor sample name even for germline pave run
-            vcfFile = germlineBlacklistSiteAnnotation.outputVcf,
-            vcfFileIndex = select_first([germlineBlacklistSiteAnnotation.outputVcfIndex]),
+            vcfFile = germlinePassFilter.outputVcf,
+            vcfFileIndex = select_first([germlinePassFilter.outputVcfIndex]),
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -434,6 +400,10 @@ workflow WGSinCancerDiagnostics {
             panelBed = somaticCodingPanel,
             coverageBed = somaticCodingPanel,
             highConfidenceBed = highConfidenceBed,
+            geneDataCsv = geneDataCsv,
+            proteinFeaturesCsv = proteinFeaturesCsv,
+            transExonDataCsv = transExonDataCsv,
+            transSpliceDataCsv = transSpliceDataCsv,
             hg38 = hg38
     }
 
@@ -445,38 +415,11 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./sage.passFilter.vcf.gz"
     }
 
-    call bcftools.Annotate as mappabilityAnnotation {
-        input:
-            annsFile = mappabilityBed,
-            columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
-            headerLines = mappabilityHdr,
-            inputFile = passFilter.outputVcf,
-            inputFileIndex = passFilter.outputVcfIndex,
-            outputPath = "./sage.passFilter.mappabilityAnnotated.vcf.gz"
-    }
-
-    call bcftools.Annotate as ponAnnotation {
-        input:
-            annsFile = PON,
-            annsFileIndex = PONindex,
-            columns = ["PON_COUNT", "PON_MAX"],
-            inputFile = mappabilityAnnotation.outputVcf,
-            inputFileIndex = mappabilityAnnotation.outputVcfIndex,
-            outputPath = "./sage.passFilter.mappabilityAnnotated.ponAnnotated.vcf.gz"
-    }
-
-    call PonFilter as ponFilter {
-        input:
-            inputVcf = ponAnnotation.outputVcf,
-            inputVcfIndex = select_first([ponAnnotation.outputVcfIndex]),
-            outputPath = "./sage.passFilter.mappabilityAnnotated.ponFilter.vcf.gz"
-    }
-
     call hmftools.Pave as somaticAnnotation {
         input:
             sampleName = tumorName, #Hartwig pipeline give tumor sample name even for germline pave run
-            vcfFile = ponFilter.outputVcf,
-            vcfFileIndex = ponFilter.outputVcfIndex,
+            vcfFile = passFilter.outputVcf,
+            vcfFileIndex = passFilter.outputVcfIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -525,9 +468,24 @@ workflow WGSinCancerDiagnostics {
             breakendPon = breakendPon,
             breakpointPon = breakpointPon,
             referenceName = normalName,
-            tumorName = tumorName,
+            sampleName = tumorName,
             vcf = viralAnnotation.outputVcf,
-            vcfIndex = viralAnnotation.outputVcfIndex
+            vcfIndex = viralAnnotation.outputVcfIndex,
+            outputId = "somatic"
+    }
+
+    call hmftools.Gripss as gripssGermline {
+        input:
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            knownFusionPairBedpe = knownFusionPairBedpe,
+            breakendPon = breakendPon,
+            breakpointPon = breakpointPon,
+            sampleName = normalName,
+            vcf = viralAnnotation.outputVcf,
+            vcfIndex = viralAnnotation.outputVcfIndex,
+            outputId = "germline"
     }
 
     call hmftools.Amber as amber {
