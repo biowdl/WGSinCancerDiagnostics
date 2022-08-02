@@ -35,7 +35,6 @@ import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
 import "tasks/samtools.wdl" as samtools
-import "tasks/snpeff.wdl" as snpEff
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -57,7 +56,6 @@ workflow WGSinCancerDiagnostics {
         File viralReferenceFai
         File viralReferenceDict
         File viralReferenceImg
-        File breakpointHotspot
         File breakendPon
         File breakpointPon
         File PON
@@ -91,7 +89,6 @@ workflow WGSinCancerDiagnostics {
         Array[String]+ sampleDoids
         Array[File]+ serveActionability
         File doidsJson
-        File peachTranscriptTsv
         File peachPanelJson
         File driverGeneBed
         File cosmicSignatures

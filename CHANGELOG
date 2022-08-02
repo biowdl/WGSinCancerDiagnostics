@@ -10,6 +10,9 @@ that users understand how the changes affect the new version.
 
 version 2.1.0-dev
 ---------------------------
++ Removed unused `breakpointHotspot` input.
++ Removed unused `peachTranscriptTsv` input.
++ Removed unused import of snpEff task.
 + Chunk numbers per input fastq are now calculated based on size.
   The total number of chunks can be set using the
   `totalMappingChunks` inputs, which defaults to 25.
