@@ -95,7 +95,9 @@ workflow WGSinCancerDiagnostics {
         File knownFusionPairBedpe
         File cohortMapping
         File cohortPercentiles
-        Array[File]+ gnomadFreqDir
+        Array[File]+ gnomadFreqFiles
+        File hlaRegions
+        File germlineDelFreqFile
 
         Boolean runAdapterClipping = false
         Int totalMappingChunks = 25
@@ -384,7 +386,7 @@ workflow WGSinCancerDiagnostics {
             ponFilters = if hg38
                 then "HOTSPOT:5:5;PANEL:2:5;UNKNOWN:2:0"
                 else "HOTSPOT:10:5;PANEL:6:5;UNKNOWN:6:0",
-            gnomadFreqDir = gnomadFreqDir,
+            gnomadFreqFiles = gnomadFreqFiles,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
@@ -489,17 +491,15 @@ workflow WGSinCancerDiagnostics {
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
+            refGenomeVersion = if hg38 then "38" else "37",
             driverGenePanel = panelTsv,
             somaticHotspots = somaticHotspots,
             germlineHotspots = germlineHotspots,
+            germlineDelFreqFile = germlineDelFreqFile,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv
-
-            # TODO if shallow also the following:
-            #-highly_diploid_percentage 0.88 \
-            #-somatic_min_purity_spread 0.1
     }
 
     call hmftools.Linx as linx {
@@ -518,6 +518,26 @@ workflow WGSinCancerDiagnostics {
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv
+    }
+
+    call hmftools.Linx as linxGermline {
+        input:
+            sampleName = normalName,
+            svVcf = gripssGermline.filteredVcf,
+            svVcfIndex = gripssGermline.filteredVcfIndex,
+            refGenomeVersion = if hg38 then "38" else "37",
+            lineElementCsv = lineElementCsv,
+            driverGenePanel = panelTsv,
+            geneDataCsv = geneDataCsv,
+            proteinFeaturesCsv = proteinFeaturesCsv,
+            transExonDataCsv = transExonDataCsv,
+            transSpliceDataCsv = transSpliceDataCsv,
+            germline = true,
+            checkFusions = false,
+            checkDrivers = false,
+            writeVisData = false,
+            germlinePonSvFile = breakpointPon,
+            germlinePonSglFile = breakendPon
     }
 
     call hmftools.LinxVisualisations as linxVisualisations {
@@ -633,6 +653,22 @@ workflow WGSinCancerDiagnostics {
             tumorName = tumorName,
             normalName = normalName,
             panelJson = peachPanelJson
+    }
+
+    call sambamba.Slice as somaticHLAbam {
+        input:
+            bamFile = tumorMarkdup.outputBam,
+            bamIndex = tumorMarkdup.outputBamIndex,
+            outputPath = "./~{tumorName}_HLA.bam",
+            regions = hlaRegions
+    }
+
+    call sambamba.Slice as germlineHLAbam {
+        input:
+            bamFile = normalMarkdup.outputBam,
+            bamIndex = normalMarkdup.outputBamIndex,
+            outputPath = "./~{normalName}_HLA.bam",
+            regions = hlaRegions
     }
 
     call hmftools.Orange as orange {
