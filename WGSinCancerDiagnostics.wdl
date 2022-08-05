@@ -28,14 +28,13 @@ import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
 import "tasks/deconstructsigs.wdl" as deconstructSigs
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
-import "tasks/fastqsplitter.wdl" as fastqplitter
+import "tasks/fastqsplitter.wdl" as fastqsplitter
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
 import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
 import "tasks/samtools.wdl" as samtools
-import "tasks/snpeff.wdl" as snpEff
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -57,7 +56,6 @@ workflow WGSinCancerDiagnostics {
         File viralReferenceFai
         File viralReferenceDict
         File viralReferenceImg
-        File breakpointHotspot
         File breakendPon
         File breakpointPon
         File PON
@@ -91,7 +89,6 @@ workflow WGSinCancerDiagnostics {
         Array[String]+ sampleDoids
         Array[File]+ serveActionability
         File doidsJson
-        File peachTranscriptTsv
         File peachPanelJson
         File driverGeneBed
         File cosmicSignatures
@@ -100,72 +97,64 @@ workflow WGSinCancerDiagnostics {
         File cohortPercentiles
 
         Boolean runAdapterClipping = false
+        Int totalMappingChunks = 25
     }
     
     meta {allowNestedInputs: true}
 
+    scatter (normalrg in normalReadgroups) {File normalFastqs = normalrg.read1}
+    scatter (tumorrg in tumorReadgroups) {File tumorFastqs = tumorrg.read1}
+    Int totalFastqSize = ceil(size(flatten([normalFastqs, tumorFastqs]), "G"))
+
     # Normal sample
 
-    if (length(normalReadgroups) == 1) {
-        call fastqplitter.Fastqsplitter as normalSplit1 {
-            input:
-                inputFastq = normalReadgroups[0].read1,
-                outputPaths = [
-                    "normal_0_R1.fastq.gz",
-                    "normal_1_R1.fastq.gz",
-                    "normal_2_R1.fastq.gz",
-                    "normal_3_R1.fastq.gz",
-                    "normal_4_R1.fastq.gz"
-                ]
+    scatter (normalReadgroup in normalReadgroups) {
+        Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
+        Array[String] normalChunks = prefix("~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_chunk_", range(numberOfChunksNormal))
+        
+        scatter (normalChunk in normalChunks) {
+            String normalChunkPathsR1 = sub(normalChunk, "$", "_R1.fastq.gz")
+            String normalChunkPathsR2 = sub(normalChunk, "$", "_R2.fastq.gz") 
         }
 
-        call fastqplitter.Fastqsplitter as normalSplit2 {
+        call fastqsplitter.Fastqsplitter as normalSplit1 {
             input:
-                inputFastq = normalReadgroups[0].read2,
-                outputPaths = [
-                    "normal_0_R2.fastq.gz",
-                    "normal_1_R2.fastq.gz",
-                    "normal_2_R2.fastq.gz",
-                    "normal_3_R2.fastq.gz",
-                    "normal_4_R2.fastq.gz"
-                ]
+                inputFastq = normalReadgroup.read1,
+                outputPaths = normalChunkPathsR1
         }
 
-        scatter (normalChunk in zip(normalSplit1.chunks, normalSplit2.chunks)) {
-            Readgroup chunkedNormalFastq = {
-                "id": normalReadgroups[0].id,
-                "library": normalReadgroups[0].id,
-                "read1": normalChunk.left,
-                "read2": normalChunk.right
+        call fastqsplitter.Fastqsplitter as normalSplit2 {
+            input:
+                inputFastq = normalReadgroup.read2,
+                outputPaths = normalChunkPathsR2
+        }
+
+        scatter (normalChunkPair in zip(normalSplit1.chunks, normalSplit2.chunks)) {
+            call qc.QC as normalQC {
+                input:
+                    read1 = normalChunkPair.left,
+                    read2 = normalChunkPair.right,
+                    outputDir = "./QC",
+                    runAdapterClipping = runAdapterClipping
+            }
+
+            call bwa.Mem as normalBwaMem {
+                input:
+                    read1 = if runAdapterClipping then normalQC.qcRead1 else normalChunkPair.left, # not using QC output since it's the same as the raw (allows more parallelization)
+                    read2 = if runAdapterClipping then normalQC.qcRead2 else normalChunkPair.right,
+                    readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
+                    bwaIndex = bwaIndex,
+                    threads = 8,
+                    usePostalt = hg38,
+                    useSoftclippingForSupplementary = true,
+                    outputPrefix = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
             }
         }
-    }
-
-    scatter (normalReadgroup in select_first([chunkedNormalFastq, normalReadgroups])) {
-        call qc.QC as normalQC {
-            input:
-                read1 = normalReadgroup.read1,
-                read2 = normalReadgroup.read2,
-                outputDir = "./QC",
-                runAdapterClipping = runAdapterClipping
-        }
-
-        call bwa.Mem as normalBwaMem {
-            input:
-                read1 = if runAdapterClipping then normalQC.qcRead1 else normalReadgroup.read1, # not using QC output since it's the same as the raw (allows more parallelization)
-                read2 = if runAdapterClipping then normalQC.qcRead2 else normalReadgroup.read2,
-                readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
-                bwaIndex = bwaIndex,
-                threads = 8,
-                usePostalt = hg38,
-                useSoftclippingForSupplementary = true,
-                outputPrefix = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
-            }
     }
 
     call sambamba.Markdup as normalMarkdup {
         input:
-            inputBams = normalBwaMem.outputBam,
+            inputBams = flatten(normalBwaMem.outputBam),
             outputPath = "~{normalName}.markdup.bam",
             threads = 3,
             memoryMb = 25000
@@ -202,96 +191,53 @@ workflow WGSinCancerDiagnostics {
 
     # Tumor sample
 
-    if (length(tumorReadgroups) == 1) {
-        call fastqplitter.Fastqsplitter as tumorSplit1 {
-            input:
-                inputFastq = tumorReadgroups[0].read1,
-                outputPaths = [
-                    "tumor_0_R1.fastq.gz",
-                    "tumor_1_R1.fastq.gz",
-                    "tumor_2_R1.fastq.gz",
-                    "tumor_3_R1.fastq.gz",
-                    "tumor_4_R1.fastq.gz",
-                    "tumor_5_R1.fastq.gz",
-                    "tumor_6_R1.fastq.gz",
-                    "tumor_7_R1.fastq.gz",
-                    "tumor_8_R1.fastq.gz",
-                    "tumor_9_R1.fastq.gz",
-                    "tumor_10_R1.fastq.gz",
-                    "tumor_11_R1.fastq.gz",
-                    "tumor_12_R1.fastq.gz",
-                    "tumor_13_R1.fastq.gz",
-                    "tumor_14_R1.fastq.gz",
-                    "tumor_15_R1.fastq.gz",
-                    "tumor_16_R1.fastq.gz",
-                    "tumor_17_R1.fastq.gz",
-                    "tumor_18_R1.fastq.gz",
-                    "tumor_19_R1.fastq.gz"
-                ]
+    scatter (tumorReadgroup in tumorReadgroups) {
+        Int numberOfChunksTumor = ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
+        Array[String] tumorChunks = prefix("~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_chunk_", range(numberOfChunksTumor))
+        
+        scatter (tumorChunk in tumorChunks) {
+            String tumorChunkPathsR1 = sub(tumorChunk, "$", "_R1.fastq.gz")
+            String tumorChunkPathsR2 = sub(tumorChunk, "$", "_R2.fastq.gz") 
         }
 
-        call fastqplitter.Fastqsplitter as tumorSplit2 {
+        call fastqsplitter.Fastqsplitter as tumorSplit1 {
             input:
-                inputFastq = tumorReadgroups[0].read2,
-                outputPaths = [
-                    "tumor_0_R2.fastq.gz",
-                    "tumor_1_R2.fastq.gz",
-                    "tumor_2_R2.fastq.gz",
-                    "tumor_3_R2.fastq.gz",
-                    "tumor_4_R2.fastq.gz",
-                    "tumor_5_R2.fastq.gz",
-                    "tumor_6_R2.fastq.gz",
-                    "tumor_7_R2.fastq.gz",
-                    "tumor_8_R2.fastq.gz",
-                    "tumor_9_R2.fastq.gz",
-                    "tumor_10_R2.fastq.gz",
-                    "tumor_11_R2.fastq.gz",
-                    "tumor_12_R2.fastq.gz",
-                    "tumor_13_R2.fastq.gz",
-                    "tumor_14_R2.fastq.gz",
-                    "tumor_15_R2.fastq.gz",
-                    "tumor_16_R2.fastq.gz",
-                    "tumor_17_R2.fastq.gz",
-                    "tumor_18_R2.fastq.gz",
-                    "tumor_19_R2.fastq.gz"
-                ]
+                inputFastq = tumorReadgroup.read1,
+                outputPaths = tumorChunkPathsR1
         }
 
-        scatter (tumorChunk in zip(tumorSplit1.chunks, tumorSplit2.chunks)) {
-            Readgroup chunkedtumorFastq = {
-                "id": tumorReadgroups[0].id,
-                "library": tumorReadgroups[0].id,
-                "read1": tumorChunk.left,
-                "read2": tumorChunk.right
+        call fastqsplitter.Fastqsplitter as tumorSplit2 {
+            input:
+                inputFastq = tumorReadgroup.read2,
+                outputPaths = tumorChunkPathsR2
+        }
+
+        scatter (tumorChunkPair in zip(tumorSplit1.chunks, tumorSplit2.chunks)) {
+            call qc.QC as tumorQC {
+                input:
+                    read1 = tumorChunkPair.left,
+                    read2 = tumorChunkPair.right,
+                    outputDir = "./QC",
+                    runAdapterClipping = runAdapterClipping
+            }
+
+            call bwa.Mem as tumorBwaMem {
+                input:
+                    read1 = if runAdapterClipping then tumorQC.qcRead1 else tumorChunkPair.left, # not using QC output since it's the same as the raw (allows more parallelization)
+                    read2 = if runAdapterClipping then tumorQC.qcRead2 else tumorChunkPair.right,
+                    readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
+                    bwaIndex = bwaIndex,
+                    threads = 8,
+                    usePostalt = hg38,
+                    useSoftclippingForSupplementary = true,
+                    outputPrefix = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
             }
         }
-    }
-
-    scatter (tumorReadgroup in select_first([chunkedtumorFastq, tumorReadgroups])) {
-        call qc.QC as tumorQC {
-            input:
-                read1 = tumorReadgroup.read1,
-                read2 = tumorReadgroup.read2,
-                outputDir = "./QC",
-                runAdapterClipping = runAdapterClipping
-        }
-
-        call bwa.Mem as tumorBwaMem {
-            input:
-                read1 = if runAdapterClipping then tumorQC.qcRead1 else tumorReadgroup.read1, # not using QC output since it's the same as the raw (allows more parallelization)
-                read2 = if runAdapterClipping then tumorQC.qcRead2 else tumorReadgroup.read2,
-                readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
-                bwaIndex = bwaIndex,
-                threads = 8,
-                usePostalt = hg38,
-                useSoftclippingForSupplementary = true,
-                outputPrefix = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
-            }
     }
 
     call sambamba.Markdup as tumorMarkdup {
         input:
-            inputBams = tumorBwaMem.outputBam,
+            inputBams = flatten(tumorBwaMem.outputBam),
             outputPath = "~{tumorName}.markdup.bam",
             threads = 3,
             memoryMb = 25000
@@ -474,7 +420,7 @@ workflow WGSinCancerDiagnostics {
 
     call hmftools.Pave as somaticAnnotation {
         input:
-            sampleName = tumorName, #Hartwig pipeline give tumor sample name even for germline pave run
+            sampleName = tumorName,
             vcfFile = ponFilter.outputVcf,
             vcfFileIndex = ponFilter.outputVcfIndex,
             referenceFasta = referenceFasta,
@@ -764,8 +710,8 @@ workflow WGSinCancerDiagnostics {
     }
 
     output {
-        Array[File] normalQcReports = flatten(normalQC.reports)
-        Array[File] tumorQcReports = flatten(tumorQC.reports)
+        Array[File] normalQcReports = flatten(flatten(normalQC.reports))
+        Array[File] tumorQcReports = flatten(flatten(tumorQC.reports))
         # FIXME these might be unnecessary, since purple contains these results as well
         File structuralVariantsVcf = gripss.filteredVcf
         File structuralVariantsVcfIndex = gripss.filteredVcfIndex
@@ -816,7 +762,7 @@ task PonFilter {
     input {
         File inputVcf
         File inputVcfIndex
-        String  outputPath
+        String outputPath
 
         String memory = "256M"
         Int timeMinutes = 1 + ceil(size(inputVcf, "G"))
