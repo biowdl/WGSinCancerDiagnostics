@@ -58,8 +58,8 @@ workflow WGSinCancerDiagnostics {
         File viralReferenceImg
         File breakendPon
         File breakpointPon
-        File PON
-        File PONindex
+        File ponFile
+        File ponArtifactFile
         File likelyHeterozygousLoci
         File gcProfile
         File panelTsv
@@ -95,6 +95,7 @@ workflow WGSinCancerDiagnostics {
         File knownFusionPairBedpe
         File cohortMapping
         File cohortPercentiles
+        Array[File]+ gnomadFreqDir
 
         Boolean runAdapterClipping = false
         Int totalMappingChunks = 25
@@ -324,10 +325,16 @@ workflow WGSinCancerDiagnostics {
             referenceFastaDict = referenceFastaDict,
             refGenomeVersion = if hg38 then "38" else "37",
             driverGenePanel = panelTsv,
+            mappabilityBed = mappabilityBed,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
-            transSpliceDataCsv = transSpliceDataCsv
+            transSpliceDataCsv = transSpliceDataCsv,
+            clinvarVcf = clinvarVcf,
+            clinvarVcfIndex = clinvarVcfIndex,
+            blacklistVcf = germlineBlacklistVcf,
+            blacklistBed = germlineBlacklistBed,
+            blacklistVcfIndex = germlineBlacklistVcfIndex
     }
 
     # somatic calling on pair
@@ -371,6 +378,13 @@ workflow WGSinCancerDiagnostics {
             referenceFastaDict = referenceFastaDict,
             refGenomeVersion = if hg38 then "38" else "37",
             driverGenePanel = panelTsv,
+            mappabilityBed = mappabilityBed,
+            ponFile = ponFile,
+            ponArtefactFile = ponArtifactFile,
+            ponFilters = if hg38
+                then "HOTSPOT:5:5;PANEL:2:5;UNKNOWN:2:0"
+                else "HOTSPOT:10:5;PANEL:6:5;UNKNOWN:6:0",
+            gnomadFreqDir = gnomadFreqDir,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
