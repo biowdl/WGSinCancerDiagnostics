@@ -68,10 +68,13 @@ workflow WGSinCancerDiagnostics {
         File fragileSiteCsv
         File lineElementCsv
         File knownFusionCsv
+        
+        #The following need to be in the same directory
         File geneDataCsv
         File proteinFeaturesCsv
         File transExonDataCsv
         File transSpliceDataCsv
+
         File gridssBlacklistBed
         File gridssProperties
         File germlineCoveragePanel
@@ -98,6 +101,11 @@ workflow WGSinCancerDiagnostics {
         Array[File]+ gnomadFreqFiles
         File hlaRegions
         File germlineDelFreqFile
+
+        #The following need to be in the same directory
+        File hlaRefAminoacidSequencesCsv
+        File hlaRefNucleotideSequencesCsv
+        File lilacAlleleFrequenciesCsv
 
         Boolean runAdapterClipping = false
         Int totalMappingChunks = 25
@@ -546,6 +554,25 @@ workflow WGSinCancerDiagnostics {
             refGenomeVersion = if hg38 then "38" else "37",
             linxOutput = linx.outputs,
             plotReportable = false #TODO might need to be enabled
+    }
+
+    call hmftools.Lilac as lilac {
+        input:
+            tumorName = tumorName,
+            referenceBam = germlineHLAbam.slicedBam,
+            referenceBamIndex = germlineHLAbam.slicedBamIndex,
+            tumorBam = somaticHLAbam.slicedBam,
+            tumorBamIndex = somaticHLAbam.slicedBamIndex,
+            refGenomeVersion = if hg38 then "38" else "37",
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            geneCopyNumberFile = purple.purpleCnvGeneTsv,
+            somaticVariantsFile = purple.purpleSomaticVcf,
+            somaticVariantsFileIndex = purple.purpleSomaticVcfIndex,
+            hlaRefAminoacidSequencesCsv = hlaRefAminoacidSequencesCsv,
+            hlaRefNucleotideSequencesCsv = hlaRefNucleotideSequencesCsv,
+            lilacAlleleFrequenciesCsv = lilacAlleleFrequenciesCsv
     }
 
     call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
