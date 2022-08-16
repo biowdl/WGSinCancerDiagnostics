@@ -59,7 +59,7 @@ workflow WGSinCancerDiagnostics {
         File breakendPon
         File breakpointPon
         File ponFile
-        File ponArtifactFile
+        File ponArtefactFile
         File likelyHeterozygousLoci
         File gcProfile
         File panelTsv
@@ -390,7 +390,7 @@ workflow WGSinCancerDiagnostics {
             driverGenePanel = panelTsv,
             mappabilityBed = mappabilityBed,
             ponFile = ponFile,
-            ponArtefactFile = ponArtifactFile,
+            ponArtefactFile = ponArtefactFile,
             ponFilters = if hg38
                 then "HOTSPOT:5:5;PANEL:2:5;UNKNOWN:2:0"
                 else "HOTSPOT:10:5;PANEL:6:5;UNKNOWN:6:0",
