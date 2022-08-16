@@ -59,7 +59,6 @@ workflow WGSinCancerDiagnostics {
         File breakendPon
         File breakpointPon
         File ponFile
-        File ponArtefactFile
         File likelyHeterozygousLoci
         File gcProfile
         File panelTsv
@@ -98,7 +97,7 @@ workflow WGSinCancerDiagnostics {
         File knownFusionPairBedpe
         File cohortMapping
         File cohortPercentiles
-        Array[File]+ gnomadFreqFiles
+        Array[File]+ gnomadFreqFiles = [] # only used for hg38
         File hlaRegions
         File germlineDelFreqFile
 
@@ -390,11 +389,10 @@ workflow WGSinCancerDiagnostics {
             driverGenePanel = panelTsv,
             mappabilityBed = mappabilityBed,
             ponFile = ponFile,
-            ponArtefactFile = ponArtefactFile,
             ponFilters = if hg38
                 then "HOTSPOT:5:5;PANEL:2:5;UNKNOWN:2:0"
                 else "HOTSPOT:10:5;PANEL:6:5;UNKNOWN:6:0",
-            gnomadFreqFiles = gnomadFreqFiles,
+            gnomadFreqFiles = if hg38 then gnomadFreqFiles else [],
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
