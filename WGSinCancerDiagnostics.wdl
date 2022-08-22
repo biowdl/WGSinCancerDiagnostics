@@ -467,7 +467,8 @@ workflow WGSinCancerDiagnostics {
             loci = likelyHeterozygousLoci,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
-            referenceFastaDict = referenceFastaDict
+            referenceFastaDict = referenceFastaDict,
+            refGenomeVersion = if hg38 then "38" else "37"
     }
 
     call hmftools.Cobalt as cobalt {
