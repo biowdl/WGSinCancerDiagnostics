@@ -55,7 +55,7 @@ workflow WGSinCancerDiagnostics {
         File viralReference
         File viralReferenceFai
         File viralReferenceDict
-        File viralReferenceImg
+        Array[File]+ viralReferenceBwaIndex
         File breakendPon
         File breakpointPon
         File ponFile
@@ -424,7 +424,7 @@ workflow WGSinCancerDiagnostics {
             viralReference = viralReference,
             viralReferenceFai = viralReferenceFai,
             viralReferenceDict = viralReferenceDict,
-            viralReferenceImg = viralReferenceImg
+            viralReferenceBwaIndex = viralReferenceBwaIndex
     }
 
     call hmftools.Gripss as gripss {
