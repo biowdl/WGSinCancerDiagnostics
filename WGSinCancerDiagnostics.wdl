@@ -743,6 +743,18 @@ workflow WGSinCancerDiagnostics {
             tumorName = tumorName
     }
 
+    call reportPipelineVersion as pipelineVersion {
+        input:
+            versionString = "2.1.0"
+    }
+
+    call MakeVafTable as makeVafTable {
+        input:
+            purpleSomaticVcf = purple.purpleSomaticVcf,
+            purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex,
+            outputPath = "./~{tumorName}.somatic_vaf.tsv"
+    }
+
     output {
         Array[File] normalQcReports = flatten(flatten(normalQC.reports))
         Array[File] tumorQcReports = flatten(flatten(tumorQC.reports))
@@ -789,6 +801,81 @@ workflow WGSinCancerDiagnostics {
         File orangeJson = orange.orangeJson
         File orangePdf = orange.orangePdf
         File combinedVCF = makeReportedVCF.vcf
+        File pipelineVersionFile = pipelineVersion.versionFile
+        File vafTable = makeVafTable.vafTable
+    }
+}
+
+task MakeReportedVCF {
+    input {
+        File purpleGermlineVcf
+        File purpleSomaticVcf
+        String tumorName
+    }
+
+    command <<<
+        set -e
+        zcat ~{purpleSomaticVcf} | egrep "^##" > ~{tumorName}.reportedVAR.vcf
+        echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumorName}" >> ~{tumorName}.reportedVAR.vcf
+        zcat ~{purpleSomaticVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $11}' FS='\t' OFS='\t' >> ~{tumorName}.reportedVAR.vcf
+        zcat ~{purpleGermlineVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}' FS='\t' OFS='\t' | sed "s#\./\.#0/1#" >> ~{tumorName}.reportedVAR.vcf
+    >>>
+
+    output {
+        File vcf = "~{tumorName}.reportedVAR.vcf"
+    }
+
+    runtime {
+        memory: "4G"
+        time_minutes: 15 # !UnknownRuntimeKey
+        docker: "ubuntu:22.04"
+    }
+
+    parameter_meta {
+        purpleGermlineVcf: {description: "The germline VCF produced by purple.", category: "required"}
+        purpleSomaticVcf: {description: "The somatic VCF produced by purple.", category: "required"}
+        tumorName: {description: "The name of the tumor sample.", category: "required"}
+    }
+}
+
+task MakeVafTable {
+    input {
+        File purpleSomaticVcf
+        File purpleSomaticVcfIndex
+        String outputPath
+
+        String memory = "256M"
+        Int timeMinutes = 1 + ceil(size(purpleSomaticVcf, "G"))
+        String dockerImage = "quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2"
+    }
+
+    command {
+        set -eo pipefail
+        bcftools query \
+        -i 'FILTER="PASS"' \
+        -f '%CHROM\t%POS\t%INFO/PURPLE_AF\n' \
+        ~{purpleSomaticVcf} | \
+        grep -v '^MT' \
+        > ~{outputPath}
+    }
+
+    output {
+        File vafTable = outputPath
+    }
+
+    runtime {
+        memory: memory
+        docker: dockerImage
+        time_minutes: timeMinutes # !UnknownRuntimeKey
+    }
+
+    parameter_meta {
+        purpleSomaticVcf: {description: "The somatic VCF file produced by purple.", category: "required"}
+        purpleSomaticVcfIndex: {description: "The index for the somatic VCF file produced by purple.", category: "required"}
+        outputPath: {description: "The path to write the output to.", category: "common"}
+        dockerImage: {description: "The docker image used for this task. Changing this may result in errors which the developers may choose not to address.", category: "advanced"}
+        memory: {description: "The amount of memory this job will use.", category: "advanced"}
+        timeMinutes: {description: "The maximum amount of time the job will run in minutes.", category: "advanced"}
     }
 }
 
@@ -849,35 +936,27 @@ task PonFilter {
     }
 }
 
-task MakeReportedVCF {
+task reportPipelineVersion {
     input {
-        File purpleGermlineVcf
-        File purpleSomaticVcf
-        String tumorName
+        String versionString
     }
 
-    command <<<
-        set -e
-        zcat ~{purpleSomaticVcf} | egrep "^##" > ~{tumorName}.reportedVAR.vcf
-        echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumorName}" >> ~{tumorName}.reportedVAR.vcf
-        zcat ~{purpleSomaticVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $11}' FS='\t' OFS='\t' >> ~{tumorName}.reportedVAR.vcf
-        zcat ~{purpleGermlineVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}' FS='\t' OFS='\t' | sed "s#\./\.#0/1#" >> ~{tumorName}.reportedVAR.vcf
-    >>>
+    command {
+        echo ~{versionString} > pipeline.version
+    }
 
     output {
-        File vcf = "~{tumorName}.reportedVAR.vcf"
+        File versionFile = "pipeline.version"
     }
 
     runtime {
-        memory: "4G"
-        time_minutes: 15 # !UnknownRuntimeKey
+        memory: "1M"
         docker: "ubuntu:22.04"
+        time_minutes: 2 # !UnknownRuntimeKey
     }
 
     parameter_meta {
-        purpleGermlineVcf: {description: "The germline VCF produced by purple.", category: "required"}
-        purpleSomaticVcf: {description: "The somatic VCF produced by purple.", category: "required"}
-        tumorName: {description: "The name of the tumor sample.", category: "required"}
+        versionString: {description: "The version of the pipeline.", category: "required"}
     }
 }
 
