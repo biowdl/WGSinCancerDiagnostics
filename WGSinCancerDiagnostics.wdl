@@ -28,6 +28,7 @@ import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
 import "tasks/deconstructsigs.wdl" as deconstructSigs
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
+import "tasks/fastp.wdl" as fastp
 import "tasks/fastqsplitter.wdl" as fastqsplitter
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
@@ -110,38 +111,25 @@ workflow WGSinCancerDiagnostics {
 
     scatter (normalReadgroup in normalReadgroups) {
         Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
-        Array[String] normalChunks = prefix("~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_chunk_", range(numberOfChunksNormal))
-        
-        scatter (normalChunk in normalChunks) {
-            String normalChunkPathsR1 = sub(normalChunk, "$", "_R1.fastq.gz")
-            String normalChunkPathsR2 = sub(normalChunk, "$", "_R2.fastq.gz") 
-        }
 
-        call fastqsplitter.Fastqsplitter as normalSplit1 {
+        call fastp.Fastp as adapterClipping {
             input:
-                inputFastq = normalReadgroup.read1,
-                outputPaths = normalChunkPathsR1
+                r1 = normalReadgroup.read1,
+                r2 = normalReadgroup.read2,
+                outputPathR1 = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.fq.gz",
+                outputPathR2 = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.fq.gz",
+                htmlPath = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.html",
+                jsonPath = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.json",
+                correction = true,
+                lengthRequired = 15,
+                split = numberOfChunksNormal
         }
 
-        call fastqsplitter.Fastqsplitter as normalSplit2 {
-            input:
-                inputFastq = normalReadgroup.read2,
-                outputPaths = normalChunkPathsR2
-        }
-
-        scatter (normalChunkPair in zip(normalSplit1.chunks, normalSplit2.chunks)) {
-            call qc.QC as normalQC {
+        scatter (normalChunkPair in zip(adapterClipping.clippedR1, adapterClipping.clippedR2)) {
+            call bwa.Mem as normalBwaMem {
                 input:
                     read1 = normalChunkPair.left,
                     read2 = normalChunkPair.right,
-                    outputDir = "./QC",
-                    runAdapterClipping = runAdapterClipping
-            }
-
-            call bwa.Mem as normalBwaMem {
-                input:
-                    read1 = if runAdapterClipping then normalQC.qcRead1 else normalChunkPair.left, # not using QC output since it's the same as the raw (allows more parallelization)
-                    read2 = if runAdapterClipping then normalQC.qcRead2 else normalChunkPair.right,
                     readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
                     threads = 8,
@@ -172,6 +160,8 @@ workflow WGSinCancerDiagnostics {
             minimumBaseQuality = 10,
             coverageCap = 250
     }
+
+    #TODO add picard insertsize
 
     call sambamba.Flagstat as normalFlagstat {
         input:
@@ -720,6 +710,8 @@ workflow WGSinCancerDiagnostics {
             purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex,
             outputPath = "./~{tumorName}.somatic_vaf.tsv"
     }
+
+    #TODO add multiqc
 
     output {
         Array[File] normalQcReports = flatten(flatten(normalQC.reports))
