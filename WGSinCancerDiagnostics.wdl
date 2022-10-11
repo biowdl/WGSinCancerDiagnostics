@@ -165,7 +165,7 @@ workflow WGSinCancerDiagnostics {
             coverageCap = 250
     }
 
-    call picard.CollectInsertSizeMetrics as normalInsertSizeMetrics {
+    call picard.CollectInsertSizeMetrics as normalCollectInsertSizeMetrics {
         input:
             inputBam = normalMarkdup.outputBam,
             inputBamIndex = normalMarkdup.outputBamIndex,
@@ -242,7 +242,7 @@ workflow WGSinCancerDiagnostics {
             coverageCap = 250
     }
 
-    call picard.CollectInsertSizeMetrics as tumorInsertSizeMetrics {
+    call picard.CollectInsertSizeMetrics as tumorCollectInsertSizeMetrics {
         input:
             inputBam = tumorMarkdup.outputBam,
             inputBamIndex = tumorMarkdup.outputBamIndex,
@@ -751,9 +751,13 @@ workflow WGSinCancerDiagnostics {
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File cupReportPdf = cupGenerateReport.reportPdf
         File tumorMetrics = tumorCollectMetrics.metrics
+        File tumorInsertSizeMetricsTxt = tumorCollectInsertSizeMetrics.metricsTxt
+        File tumorInsertSizeMetricsPdf = tumorCollectInsertSizeMetrics.metricsPdf
         File tumorFlagstats = tumorFlagstat.stats
         File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
         File normalMetrics = normalCollectMetrics.metrics
+        File normalInsertSizeMetricsTxt = normalCollectInsertSizeMetrics.metricsTxt
+        File normalInsertSizeMetricsPdf = normalCollectInsertSizeMetrics.metricsPdf
         File normalFlagstats = normalFlagstat.stats
         File normalDriverGeneCoverage = normalCoverage.coverageTsv
         File virusbreakendVcf = virusbreakend.vcf
