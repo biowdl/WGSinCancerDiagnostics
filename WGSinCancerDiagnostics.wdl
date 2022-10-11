@@ -28,14 +28,12 @@ import "tasks/bwa.wdl" as bwa
 import "tasks/deconstructsigs.wdl" as deconstructSigs
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
 import "tasks/fastp.wdl" as fastp
-import "tasks/fastqsplitter.wdl" as fastqsplitter
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
 import "tasks/multiqc.wdl" as multiqc
 import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
-import "tasks/samtools.wdl" as samtools
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -203,10 +201,10 @@ workflow WGSinCancerDiagnostics {
             input:
                 read1 = tumorReadgroup.read1,
                 read2 = tumorReadgroup.read2,
-                outputPathR1 = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.fq.gz",
-                outputPathR2 = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.fq.gz",
-                htmlPath = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.html",
-                jsonPath = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.json",
+                outputPathR1 = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.fq.gz",
+                outputPathR2 = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.fq.gz",
+                htmlPath = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.html",
+                jsonPath = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.json",
                 correction = true,
                 split = numberOfChunksTumor,
                 performAdapterTrimming = runAdapterClipping
