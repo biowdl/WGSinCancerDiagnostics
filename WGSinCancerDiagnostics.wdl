@@ -22,7 +22,6 @@ version 1.0
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import "QC/QC.wdl" as qc
 import "tasks/bcftools.wdl" as bcftools
 import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
@@ -100,9 +99,14 @@ workflow WGSinCancerDiagnostics {
         Boolean runAdapterClipping = false
         Int totalMappingChunks = 25
     }
+
+    String versionString = "3.0.0"
     
     meta {allowNestedInputs: true}
 
+    # Calculate the total size of fastq files so we can use it to split
+    # them into (roughly) equally sized chunks, regardless of imbalances in
+    # input file sized.
     scatter (normalrg in normalReadgroups) {File normalFastqs = normalrg.read1}
     scatter (tumorrg in tumorReadgroups) {File tumorFastqs = tumorrg.read1}
     Int totalFastqSize = ceil(size(flatten([normalFastqs, tumorFastqs]), "G"))
@@ -112,20 +116,20 @@ workflow WGSinCancerDiagnostics {
     scatter (normalReadgroup in normalReadgroups) {
         Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
 
-        call fastp.Fastp as adapterClipping {
+        call fastp.Fastp as adapterClippingNormal {
             input:
-                r1 = normalReadgroup.read1,
-                r2 = normalReadgroup.read2,
+                read1 = normalReadgroup.read1,
+                read2 = normalReadgroup.read2,
                 outputPathR1 = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.fq.gz",
                 outputPathR2 = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.fq.gz",
                 htmlPath = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.html",
                 jsonPath = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.json",
                 correction = true,
-                lengthRequired = 15,
-                split = numberOfChunksNormal
+                split = numberOfChunksNormal,
+                performAdapterTrimming = runAdapterClipping
         }
 
-        scatter (normalChunkPair in zip(adapterClipping.clippedR1, adapterClipping.clippedR2)) {
+        scatter (normalChunkPair in zip(adapterClippingNormal.clippedR1, adapterClippingNormal.clippedR2)) {
             call bwa.Mem as normalBwaMem {
                 input:
                     read1 = normalChunkPair.left,
@@ -144,7 +148,7 @@ workflow WGSinCancerDiagnostics {
         input:
             inputBams = flatten(normalBwaMem.outputBam),
             outputPath = "~{normalName}.markdup.bam",
-            threads = 3,
+            threads = 8,
             memoryMb = 25000
     }
 
@@ -161,7 +165,12 @@ workflow WGSinCancerDiagnostics {
             coverageCap = 250
     }
 
-    #TODO add picard insertsize
+    call picard.CollectInsertSizeMetrics as normalInsertSizeMetrics {
+        input:
+            inputBam = normalMarkdup.outputBam,
+            inputBamIndex = normalMarkdup.outputBamIndex,
+            basename = "./~{normalName}.insertSize_metrics"
+    }
 
     call sambamba.Flagstat as normalFlagstat {
         input:
@@ -183,38 +192,25 @@ workflow WGSinCancerDiagnostics {
 
     scatter (tumorReadgroup in tumorReadgroups) {
         Int numberOfChunksTumor = ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
-        Array[String] tumorChunks = prefix("~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_chunk_", range(numberOfChunksTumor))
         
-        scatter (tumorChunk in tumorChunks) {
-            String tumorChunkPathsR1 = sub(tumorChunk, "$", "_R1.fastq.gz")
-            String tumorChunkPathsR2 = sub(tumorChunk, "$", "_R2.fastq.gz") 
-        }
-
-        call fastqsplitter.Fastqsplitter as tumorSplit1 {
+        call fastp.Fastp as adapterClippingTumor {
             input:
-                inputFastq = tumorReadgroup.read1,
-                outputPaths = tumorChunkPathsR1
+                read1 = tumorReadgroup.read1,
+                read2 = tumorReadgroup.read2,
+                outputPathR1 = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.fq.gz",
+                outputPathR2 = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.fq.gz",
+                htmlPath = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.html",
+                jsonPath = "~{tumorName}-~{tumorReadgroups.library}-~{tumorReadgroups.id}.json",
+                correction = true,
+                split = numberOfChunksTumor,
+                performAdapterTrimming = runAdapterClipping
         }
 
-        call fastqsplitter.Fastqsplitter as tumorSplit2 {
-            input:
-                inputFastq = tumorReadgroup.read2,
-                outputPaths = tumorChunkPathsR2
-        }
-
-        scatter (tumorChunkPair in zip(tumorSplit1.chunks, tumorSplit2.chunks)) {
-            call qc.QC as tumorQC {
+        scatter (tumorChunkPair in zip(adapterClippingTumor.clippedR1, adapterClippingTumor.clippedR2)) {
+            call bwa.Mem as tumorBwaMem {
                 input:
                     read1 = tumorChunkPair.left,
                     read2 = tumorChunkPair.right,
-                    outputDir = "./QC",
-                    runAdapterClipping = runAdapterClipping
-            }
-
-            call bwa.Mem as tumorBwaMem {
-                input:
-                    read1 = if runAdapterClipping then tumorQC.qcRead1 else tumorChunkPair.left, # not using QC output since it's the same as the raw (allows more parallelization)
-                    read2 = if runAdapterClipping then tumorQC.qcRead2 else tumorChunkPair.right,
                     readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
                     threads = 8,
@@ -229,7 +225,7 @@ workflow WGSinCancerDiagnostics {
         input:
             inputBams = flatten(tumorBwaMem.outputBam),
             outputPath = "~{tumorName}.markdup.bam",
-            threads = 3,
+            threads = 8,
             memoryMb = 25000
     }
 
@@ -244,6 +240,13 @@ workflow WGSinCancerDiagnostics {
             minimumMappingQuality = 20,
             minimumBaseQuality = 10,
             coverageCap = 250
+    }
+
+    call picard.CollectInsertSizeMetrics as tumorInsertSizeMetrics {
+        input:
+            inputBam = tumorMarkdup.outputBam,
+            inputBamIndex = tumorMarkdup.outputBamIndex,
+            basename = "./~{tumorName}.insertSize_metrics"
     }
 
     call sambamba.Flagstat as tumorFlagstat {
@@ -701,7 +704,7 @@ workflow WGSinCancerDiagnostics {
 
     call reportPipelineVersion as pipelineVersion {
         input:
-            versionString = "2.1.0"
+            versionString = versionString
     }
 
     call MakeVafTable as makeVafTable {
@@ -714,8 +717,10 @@ workflow WGSinCancerDiagnostics {
     #TODO add multiqc
 
     output {
-        Array[File] normalQcReports = flatten(flatten(normalQC.reports))
-        Array[File] tumorQcReports = flatten(flatten(tumorQC.reports))
+        Array[File] normalQcJsons = adapterClippingNormal.jsonReport
+        Array[File] normalQcHtmls = adapterClippingNormal.htmlReport
+        Array[File] tumorQcJsons = adapterClippingTumor.jsonReport
+        Array[File] tumorQcHtmls = adapterClippingTumor.htmlReport
         # FIXME these might be unnecessary, since purple contains these results as well
         File structuralVariantsVcf = gripss.filteredVcf
         File structuralVariantsVcfIndex = gripss.filteredVcfIndex
