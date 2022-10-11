@@ -31,6 +31,7 @@ import "tasks/fastp.wdl" as fastp
 import "tasks/fastqsplitter.wdl" as fastqsplitter
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
+import "tasks/multiqc.wdl" as multiqc
 import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
@@ -723,7 +724,12 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./~{tumorName}.somatic_vaf.tsv"
     }
 
-    #TODO add multiqc
+    call multiqc.MultiQC as qcReport {
+        input:
+            reports = flatten([adapterClippingNormal.jsonReport, adapterClippingTumor.jsonReport, 
+                [normalFlagstat.stats, normalCollectMetrics.metrics, normalCollectInsertSizeMetrics.metricsTxt,
+                 tumorFlagstat.stats, tumorCollectMetrics.metrics, tumorCollectInsertSizeMetrics.metricsTxt]])
+    }
 
     output {
         File pipelineVersionFile = pipelineVersion.versionFile
@@ -744,7 +750,9 @@ workflow WGSinCancerDiagnostics {
         File tumorInsertSizeMetricsPdf = tumorCollectInsertSizeMetrics.metricsPdf
         File tumorFlagstats = tumorFlagstat.stats
         File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
+        
         File healthChecks = healthChecker.outputFile
+        File multiqcReport = qcReport.multiqcReport
 
         # BAMs
         File normalBam = normalMarkdup.outputBam
