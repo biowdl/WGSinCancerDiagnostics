@@ -104,6 +104,11 @@ workflow WGSinCancerDiagnostics {
     
     meta {allowNestedInputs: true}
 
+    call reportPipelineVersion as pipelineVersion {
+        input:
+            versionString = versionString
+    }
+
     # Calculate the total size of fastq files so we can use it to split
     # them into (roughly) equally sized chunks, regardless of imbalances in
     # input file sized.
@@ -265,9 +270,9 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./~{tumorName}.driverGeneCoverage.tsv"
     }
 
-    # germline calling on normal sample
+    # germline calling
 
-    call hmftools.Sage as germlineSage {
+    call hmftools.Sage as germlineVariants {
         # use tumor as normal and normal as tumor
         input:
             tumorName = normalName,
@@ -297,8 +302,8 @@ workflow WGSinCancerDiagnostics {
 
     call bcftools.Filter as germlinePassFilter {
         input:
-            vcf = germlineSage.outputVcf,
-            vcfIndex = germlineSage.outputVcfIndex,
+            vcf = germlineVariants.outputVcf,
+            vcfIndex = germlineVariants.outputVcfIndex,
             include = "'FILTER=\"PASS\"'",
             outputPath = "./germlineSage.passFilter.vcf.gz"
     }
@@ -357,7 +362,8 @@ workflow WGSinCancerDiagnostics {
             transSpliceDataCsv = transSpliceDataCsv
     }
 
-    # somatic calling on pair
+    # somatic calling
+
     call hmftools.Sage as somaticVariants {
         input:
             tumorName = tumorName,
@@ -376,7 +382,7 @@ workflow WGSinCancerDiagnostics {
             hg38 = hg38
     }
 
-    call bcftools.Filter as passFilter {
+    call bcftools.Filter as somaticPassFilter {
         input:
             vcf = somaticVariants.outputVcf,
             vcfIndex = somaticVariants.outputVcfIndex,
@@ -384,13 +390,13 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./sage.passFilter.vcf.gz"
     }
 
-    call bcftools.Annotate as mappabilityAnnotation {
+    call bcftools.Annotate as somaticMappabilityAnnotation {
         input:
             annsFile = mappabilityBed,
             columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
             headerLines = mappabilityHdr,
-            inputFile = passFilter.outputVcf,
-            inputFileIndex = passFilter.outputVcfIndex,
+            inputFile = somaticPassFilter.outputVcf,
+            inputFileIndex = somaticPassFilter.outputVcfIndex,
             outputPath = "./sage.passFilter.mappabilityAnnotated.vcf.gz"
     }
 
@@ -399,8 +405,8 @@ workflow WGSinCancerDiagnostics {
             annsFile = PON,
             annsFileIndex = PONindex,
             columns = ["PON_COUNT", "PON_MAX"],
-            inputFile = mappabilityAnnotation.outputVcf,
-            inputFileIndex = mappabilityAnnotation.outputVcfIndex,
+            inputFile = somaticMappabilityAnnotation.outputVcf,
+            inputFileIndex = somaticMappabilityAnnotation.outputVcfIndex,
             outputPath = "./sage.passFilter.mappabilityAnnotated.ponAnnotated.vcf.gz"
     }
 
@@ -426,6 +432,8 @@ workflow WGSinCancerDiagnostics {
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv
     }
+
+    # SVs and CNVs
 
     call gridss.GRIDSS as structuralVariants {
         input:
@@ -517,10 +525,6 @@ workflow WGSinCancerDiagnostics {
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv
-
-            # TODO if shallow also the following:
-            #-highly_diploid_percentage 0.88 \
-            #-somatic_min_purity_spread 0.1
     }
 
     call hmftools.Linx as linx {
@@ -549,6 +553,8 @@ workflow WGSinCancerDiagnostics {
             plotReportable = false #TODO might need to be enabled
     }
 
+    # Signatures
+
     call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
         input:
             sampleName = tumorName,
@@ -565,6 +571,8 @@ workflow WGSinCancerDiagnostics {
             signaturesReference = cosmicSignatures
     }
 
+    # post-analysis QC
+
     call hmftools.HealthChecker as healthChecker {
         input:
             referenceName = normalName,
@@ -575,6 +583,8 @@ workflow WGSinCancerDiagnostics {
             tumorMetrics = tumorCollectMetrics.metrics,
             purpleOutput = purple.outputs
     }
+
+    # CUP prediction
 
     call hmftools.Cuppa as cuppa  {
         input:
@@ -601,6 +611,8 @@ workflow WGSinCancerDiagnostics {
             cupData = cuppa.cupData
     }
 
+    # Viral analysis
+
     call gridss.Virusbreakend as virusbreakend {
         input:
             bam = tumorMarkdup.outputBam,
@@ -622,6 +634,8 @@ workflow WGSinCancerDiagnostics {
             taxonomyDbTsv = taxonomyDbTsv,
             virusReportingDbTsv = virusReportingDbTsv
     }
+
+    # Reporting
 
     call hmftools.Protect as protect {
         input:
@@ -666,7 +680,7 @@ workflow WGSinCancerDiagnostics {
             tumorMetrics = tumorCollectMetrics.metrics,
             referenceFlagstats = normalFlagstat.stats,
             tumorFlagstats = tumorFlagstat.stats,
-            sageGermlineGeneCoverageTsv = germlineSage.sageGeneCoverageTsv,
+            sageGermlineGeneCoverageTsv = germlineVariants.sageGeneCoverageTsv,
             sageSomaticRefSampleBqrPlot = select_first([somaticVariants.referenceSageBqrPng]),
             sageSomaticTumorSampleBqrPlot = somaticVariants.tumorSageBqrPng,
             purpleGeneCopyNumberTsv = purple.purpleCnvGeneTsv,
@@ -702,11 +716,6 @@ workflow WGSinCancerDiagnostics {
             tumorName = tumorName
     }
 
-    call reportPipelineVersion as pipelineVersion {
-        input:
-            versionString = versionString
-    }
-
     call MakeVafTable as makeVafTable {
         input:
             purpleSomaticVcf = purple.purpleSomaticVcf,
@@ -717,22 +726,33 @@ workflow WGSinCancerDiagnostics {
     #TODO add multiqc
 
     output {
+        File pipelineVersionFile = pipelineVersion.versionFile
+
+        # QC metrics
         Array[File] normalQcJsons = adapterClippingNormal.jsonReport
         Array[File] normalQcHtmls = adapterClippingNormal.htmlReport
+        File normalMetrics = normalCollectMetrics.metrics
+        File normalInsertSizeMetricsTxt = normalCollectInsertSizeMetrics.metricsTxt
+        File normalInsertSizeMetricsPdf = normalCollectInsertSizeMetrics.metricsPdf
+        File normalFlagstats = normalFlagstat.stats
+        File normalDriverGeneCoverage = normalCoverage.coverageTsv
+
         Array[File] tumorQcJsons = adapterClippingTumor.jsonReport
         Array[File] tumorQcHtmls = adapterClippingTumor.htmlReport
-        # FIXME these might be unnecessary, since purple contains these results as well
-        File structuralVariantsVcf = gripss.filteredVcf
-        File structuralVariantsVcfIndex = gripss.filteredVcfIndex
-        File somaticVcf = somaticAnnotation.outputVcf
-        File somaticVcfIndex = somaticAnnotation.outputVcfIndex
-        File germlineVcf = germlineAnnotation.outputVcf
-        File germlineVcfIndex = germlineAnnotation.outputVcfIndex
-        # FIXME till here
+        File tumorMetrics = tumorCollectMetrics.metrics
+        File tumorInsertSizeMetricsTxt = tumorCollectInsertSizeMetrics.metricsTxt
+        File tumorInsertSizeMetricsPdf = tumorCollectInsertSizeMetrics.metricsPdf
+        File tumorFlagstats = tumorFlagstat.stats
+        File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
+        File healthChecks = healthChecker.outputFile
+
+        # BAMs
         File normalBam = normalMarkdup.outputBam
         File normalBamIndex = normalMarkdup.outputBamIndex
         File tumorBam = tumorMarkdup.outputBam
         File tumorBamIndex = tumorMarkdup.outputBamIndex
+
+        # Analysis results
         Array[File] cobaltOutput = cobalt.outputs
         Array[File] amberOutput = amber.outputs
         Array[File] purpleOutput = purple.outputs
@@ -740,36 +760,28 @@ workflow WGSinCancerDiagnostics {
         Array[File] linxOutput = linx.outputs
         Array[File] linxPlots = linxVisualisations.plots
         Array[File] linxCircos = linxVisualisations.circos
+        Array[File] peachOutput = peach.outputs
+        File protectTsv = protect.protectTsv
+        File combinedVCF = makeReportedVCF.vcf
+        File vafTable = makeVafTable.vafTable
+
         File HRDprediction = sigAndHRD.chordPrediction
         File signatures = sigAndHRD.chordSignatures
         File signatureRDS = signatureWeights.signatureRDS
-        File healthChecks = healthChecker.outputFile
+
         File cupData = cuppa.cupData
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
         File cupSummaryPng = cupGenerateReport.summaryPng
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File cupReportPdf = cupGenerateReport.reportPdf
-        File tumorMetrics = tumorCollectMetrics.metrics
-        File tumorInsertSizeMetricsTxt = tumorCollectInsertSizeMetrics.metricsTxt
-        File tumorInsertSizeMetricsPdf = tumorCollectInsertSizeMetrics.metricsPdf
-        File tumorFlagstats = tumorFlagstat.stats
-        File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
-        File normalMetrics = normalCollectMetrics.metrics
-        File normalInsertSizeMetricsTxt = normalCollectInsertSizeMetrics.metricsTxt
-        File normalInsertSizeMetricsPdf = normalCollectInsertSizeMetrics.metricsPdf
-        File normalFlagstats = normalFlagstat.stats
-        File normalDriverGeneCoverage = normalCoverage.coverageTsv
+
         File virusbreakendVcf = virusbreakend.vcf
         File virusbreakendSummary = virusbreakend.summary
         File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
-        File protectTsv = protect.protectTsv
-        Array[File] peachOutput = peach.outputs
+
         File orangeJson = orange.orangeJson
         File orangePdf = orange.orangePdf
-        File combinedVCF = makeReportedVCF.vcf
-        File pipelineVersionFile = pipelineVersion.versionFile
-        File vafTable = makeVafTable.vafTable
     }
 }
 
