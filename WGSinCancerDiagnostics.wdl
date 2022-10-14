@@ -124,10 +124,10 @@ workflow WGSinCancerDiagnostics {
             input:
                 read1 = normalReadgroup.read1,
                 read2 = normalReadgroup.read2,
-                outputPathR1 = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.fq.gz",
-                outputPathR2 = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.fq.gz",
-                htmlPath = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.html",
-                jsonPath = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.json",
+                outputPathR1 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_1.fq.gz",
+                outputPathR2 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_2.fq.gz",
+                htmlPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.html",
+                jsonPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.json",
                 correction = true,
                 split = numberOfChunksNormal,
                 performAdapterTrimming = runAdapterClipping
@@ -201,10 +201,10 @@ workflow WGSinCancerDiagnostics {
             input:
                 read1 = tumorReadgroup.read1,
                 read2 = tumorReadgroup.read2,
-                outputPathR1 = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.fq.gz",
-                outputPathR2 = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.fq.gz",
-                htmlPath = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.html",
-                jsonPath = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.json",
+                outputPathR1 = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_1.fq.gz",
+                outputPathR2 = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_2.fq.gz",
+                htmlPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.html",
+                jsonPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.json",
                 correction = true,
                 split = numberOfChunksTumor,
                 performAdapterTrimming = runAdapterClipping
