@@ -126,8 +126,8 @@ workflow WGSinCancerDiagnostics {
                 read2 = normalReadgroup.read2,
                 outputPathR1 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_1.fq.gz",
                 outputPathR2 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_2.fq.gz",
-                htmlPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.html",
-                jsonPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}.json",
+                htmlPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.html",
+                jsonPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.json",
                 correction = true,
                 split = numberOfChunksNormal,
                 performAdapterTrimming = runAdapterClipping
