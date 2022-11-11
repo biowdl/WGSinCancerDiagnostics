@@ -8,6 +8,15 @@ This document is user facing. Please word the changes in such a way
 that users understand how the changes affect the new version.
 -->
 
+version 3.0.0-dev
+---------------------------
++ Use fastp for adapter clipping and initial QC metrics collection
+  instead of the biowdl QC workflow (which uses cutadapt and fastqc).
+  Also replaces fastqsplitter for chunking of the fastq files.
++ Added picard CollectInsertSizeMetrics.
++ Added MultiQC.
++ Increased the number of threads used for duplicate marking to 8 (was 3).
+
 version 2.1.0
 ---------------------------
 + Added a task that generates a table of VAFs (as determined by Purple)

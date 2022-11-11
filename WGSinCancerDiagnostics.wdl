@@ -22,19 +22,18 @@ version 1.0
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import "QC/QC.wdl" as qc
 import "tasks/bcftools.wdl" as bcftools
 import "tasks/bedtools.wdl" as bedtools
 import "tasks/bwa.wdl" as bwa
 import "tasks/deconstructsigs.wdl" as deconstructSigs
 import "tasks/extractSigPredictHRD.wdl" as extractSigPredictHRD
-import "tasks/fastqsplitter.wdl" as fastqsplitter
+import "tasks/fastp.wdl" as fastp
 import "tasks/gridss.wdl" as gridss
 import "tasks/hmftools.wdl" as hmftools
+import "tasks/multiqc.wdl" as multiqc
 import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
-import "tasks/samtools.wdl" as samtools
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -99,9 +98,19 @@ workflow WGSinCancerDiagnostics {
         Boolean runAdapterClipping = false
         Int totalMappingChunks = 25
     }
+
+    String versionString = "3.0.0"
     
     meta {allowNestedInputs: true}
 
+    call reportPipelineVersion as pipelineVersion {
+        input:
+            versionString = versionString
+    }
+
+    # Calculate the total size of fastq files so we can use it to split
+    # them into (roughly) equally sized chunks, regardless of imbalances in
+    # input file sized.
     scatter (normalrg in normalReadgroups) {File normalFastqs = normalrg.read1}
     scatter (tumorrg in tumorReadgroups) {File tumorFastqs = tumorrg.read1}
     Int totalFastqSize = ceil(size(flatten([normalFastqs, tumorFastqs]), "G"))
@@ -110,38 +119,25 @@ workflow WGSinCancerDiagnostics {
 
     scatter (normalReadgroup in normalReadgroups) {
         Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
-        Array[String] normalChunks = prefix("~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_chunk_", range(numberOfChunksNormal))
-        
-        scatter (normalChunk in normalChunks) {
-            String normalChunkPathsR1 = sub(normalChunk, "$", "_R1.fastq.gz")
-            String normalChunkPathsR2 = sub(normalChunk, "$", "_R2.fastq.gz") 
-        }
 
-        call fastqsplitter.Fastqsplitter as normalSplit1 {
+        call fastp.Fastp as adapterClippingNormal {
             input:
-                inputFastq = normalReadgroup.read1,
-                outputPaths = normalChunkPathsR1
+                read1 = normalReadgroup.read1,
+                read2 = normalReadgroup.read2,
+                outputPathR1 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_1.fq.gz",
+                outputPathR2 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_2.fq.gz",
+                htmlPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.html",
+                jsonPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.json",
+                correction = true,
+                split = numberOfChunksNormal,
+                performAdapterTrimming = runAdapterClipping
         }
 
-        call fastqsplitter.Fastqsplitter as normalSplit2 {
-            input:
-                inputFastq = normalReadgroup.read2,
-                outputPaths = normalChunkPathsR2
-        }
-
-        scatter (normalChunkPair in zip(normalSplit1.chunks, normalSplit2.chunks)) {
-            call qc.QC as normalQC {
+        scatter (normalChunkPair in zip(adapterClippingNormal.clippedR1, adapterClippingNormal.clippedR2)) {
+            call bwa.Mem as normalBwaMem {
                 input:
                     read1 = normalChunkPair.left,
                     read2 = normalChunkPair.right,
-                    outputDir = "./QC",
-                    runAdapterClipping = runAdapterClipping
-            }
-
-            call bwa.Mem as normalBwaMem {
-                input:
-                    read1 = if runAdapterClipping then normalQC.qcRead1 else normalChunkPair.left, # not using QC output since it's the same as the raw (allows more parallelization)
-                    read2 = if runAdapterClipping then normalQC.qcRead2 else normalChunkPair.right,
                     readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
                     threads = 8,
@@ -156,7 +152,7 @@ workflow WGSinCancerDiagnostics {
         input:
             inputBams = flatten(normalBwaMem.outputBam),
             outputPath = "~{normalName}.markdup.bam",
-            threads = 3,
+            threads = 8,
             memoryMb = 25000
     }
 
@@ -171,6 +167,13 @@ workflow WGSinCancerDiagnostics {
             minimumMappingQuality = 20,
             minimumBaseQuality = 10,
             coverageCap = 250
+    }
+
+    call picard.CollectInsertSizeMetrics as normalCollectInsertSizeMetrics {
+        input:
+            inputBam = normalMarkdup.outputBam,
+            inputBamIndex = normalMarkdup.outputBamIndex,
+            basename = "./~{normalName}.insertSize_metrics"
     }
 
     call sambamba.Flagstat as normalFlagstat {
@@ -193,38 +196,25 @@ workflow WGSinCancerDiagnostics {
 
     scatter (tumorReadgroup in tumorReadgroups) {
         Int numberOfChunksTumor = ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
-        Array[String] tumorChunks = prefix("~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_chunk_", range(numberOfChunksTumor))
         
-        scatter (tumorChunk in tumorChunks) {
-            String tumorChunkPathsR1 = sub(tumorChunk, "$", "_R1.fastq.gz")
-            String tumorChunkPathsR2 = sub(tumorChunk, "$", "_R2.fastq.gz") 
-        }
-
-        call fastqsplitter.Fastqsplitter as tumorSplit1 {
+        call fastp.Fastp as adapterClippingTumor {
             input:
-                inputFastq = tumorReadgroup.read1,
-                outputPaths = tumorChunkPathsR1
+                read1 = tumorReadgroup.read1,
+                read2 = tumorReadgroup.read2,
+                outputPathR1 = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_1.fq.gz",
+                outputPathR2 = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_2.fq.gz",
+                htmlPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.html",
+                jsonPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.json",
+                correction = true,
+                split = numberOfChunksTumor,
+                performAdapterTrimming = runAdapterClipping
         }
 
-        call fastqsplitter.Fastqsplitter as tumorSplit2 {
-            input:
-                inputFastq = tumorReadgroup.read2,
-                outputPaths = tumorChunkPathsR2
-        }
-
-        scatter (tumorChunkPair in zip(tumorSplit1.chunks, tumorSplit2.chunks)) {
-            call qc.QC as tumorQC {
+        scatter (tumorChunkPair in zip(adapterClippingTumor.clippedR1, adapterClippingTumor.clippedR2)) {
+            call bwa.Mem as tumorBwaMem {
                 input:
                     read1 = tumorChunkPair.left,
                     read2 = tumorChunkPair.right,
-                    outputDir = "./QC",
-                    runAdapterClipping = runAdapterClipping
-            }
-
-            call bwa.Mem as tumorBwaMem {
-                input:
-                    read1 = if runAdapterClipping then tumorQC.qcRead1 else tumorChunkPair.left, # not using QC output since it's the same as the raw (allows more parallelization)
-                    read2 = if runAdapterClipping then tumorQC.qcRead2 else tumorChunkPair.right,
                     readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
                     threads = 8,
@@ -239,7 +229,7 @@ workflow WGSinCancerDiagnostics {
         input:
             inputBams = flatten(tumorBwaMem.outputBam),
             outputPath = "~{tumorName}.markdup.bam",
-            threads = 3,
+            threads = 8,
             memoryMb = 25000
     }
 
@@ -254,6 +244,13 @@ workflow WGSinCancerDiagnostics {
             minimumMappingQuality = 20,
             minimumBaseQuality = 10,
             coverageCap = 250
+    }
+
+    call picard.CollectInsertSizeMetrics as tumorCollectInsertSizeMetrics {
+        input:
+            inputBam = tumorMarkdup.outputBam,
+            inputBamIndex = tumorMarkdup.outputBamIndex,
+            basename = "./~{tumorName}.insertSize_metrics"
     }
 
     call sambamba.Flagstat as tumorFlagstat {
@@ -272,9 +269,9 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./~{tumorName}.driverGeneCoverage.tsv"
     }
 
-    # germline calling on normal sample
+    # germline calling
 
-    call hmftools.Sage as germlineSage {
+    call hmftools.Sage as germlineVariants {
         # use tumor as normal and normal as tumor
         input:
             tumorName = normalName,
@@ -304,8 +301,8 @@ workflow WGSinCancerDiagnostics {
 
     call bcftools.Filter as germlinePassFilter {
         input:
-            vcf = germlineSage.outputVcf,
-            vcfIndex = germlineSage.outputVcfIndex,
+            vcf = germlineVariants.outputVcf,
+            vcfIndex = germlineVariants.outputVcfIndex,
             include = "'FILTER=\"PASS\"'",
             outputPath = "./germlineSage.passFilter.vcf.gz"
     }
@@ -364,7 +361,8 @@ workflow WGSinCancerDiagnostics {
             transSpliceDataCsv = transSpliceDataCsv
     }
 
-    # somatic calling on pair
+    # somatic calling
+
     call hmftools.Sage as somaticVariants {
         input:
             tumorName = tumorName,
@@ -383,7 +381,7 @@ workflow WGSinCancerDiagnostics {
             hg38 = hg38
     }
 
-    call bcftools.Filter as passFilter {
+    call bcftools.Filter as somaticPassFilter {
         input:
             vcf = somaticVariants.outputVcf,
             vcfIndex = somaticVariants.outputVcfIndex,
@@ -391,13 +389,13 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./sage.passFilter.vcf.gz"
     }
 
-    call bcftools.Annotate as mappabilityAnnotation {
+    call bcftools.Annotate as somaticMappabilityAnnotation {
         input:
             annsFile = mappabilityBed,
             columns = ["CHROM", "FROM", "TO", "-", "MAPPABILITY"],
             headerLines = mappabilityHdr,
-            inputFile = passFilter.outputVcf,
-            inputFileIndex = passFilter.outputVcfIndex,
+            inputFile = somaticPassFilter.outputVcf,
+            inputFileIndex = somaticPassFilter.outputVcfIndex,
             outputPath = "./sage.passFilter.mappabilityAnnotated.vcf.gz"
     }
 
@@ -406,8 +404,8 @@ workflow WGSinCancerDiagnostics {
             annsFile = PON,
             annsFileIndex = PONindex,
             columns = ["PON_COUNT", "PON_MAX"],
-            inputFile = mappabilityAnnotation.outputVcf,
-            inputFileIndex = mappabilityAnnotation.outputVcfIndex,
+            inputFile = somaticMappabilityAnnotation.outputVcf,
+            inputFileIndex = somaticMappabilityAnnotation.outputVcfIndex,
             outputPath = "./sage.passFilter.mappabilityAnnotated.ponAnnotated.vcf.gz"
     }
 
@@ -433,6 +431,8 @@ workflow WGSinCancerDiagnostics {
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv
     }
+
+    # SVs and CNVs
 
     call gridss.GRIDSS as structuralVariants {
         input:
@@ -524,10 +524,6 @@ workflow WGSinCancerDiagnostics {
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv
-
-            # TODO if shallow also the following:
-            #-highly_diploid_percentage 0.88 \
-            #-somatic_min_purity_spread 0.1
     }
 
     call hmftools.Linx as linx {
@@ -556,6 +552,8 @@ workflow WGSinCancerDiagnostics {
             plotReportable = false #TODO might need to be enabled
     }
 
+    # Signatures
+
     call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
         input:
             sampleName = tumorName,
@@ -572,6 +570,8 @@ workflow WGSinCancerDiagnostics {
             signaturesReference = cosmicSignatures
     }
 
+    # post-analysis QC
+
     call hmftools.HealthChecker as healthChecker {
         input:
             referenceName = normalName,
@@ -582,6 +582,8 @@ workflow WGSinCancerDiagnostics {
             tumorMetrics = tumorCollectMetrics.metrics,
             purpleOutput = purple.outputs
     }
+
+    # CUP prediction
 
     call hmftools.Cuppa as cuppa  {
         input:
@@ -608,6 +610,8 @@ workflow WGSinCancerDiagnostics {
             cupData = cuppa.cupData
     }
 
+    # Viral analysis
+
     call gridss.Virusbreakend as virusbreakend {
         input:
             bam = tumorMarkdup.outputBam,
@@ -629,6 +633,8 @@ workflow WGSinCancerDiagnostics {
             taxonomyDbTsv = taxonomyDbTsv,
             virusReportingDbTsv = virusReportingDbTsv
     }
+
+    # Reporting
 
     call hmftools.Protect as protect {
         input:
@@ -673,7 +679,7 @@ workflow WGSinCancerDiagnostics {
             tumorMetrics = tumorCollectMetrics.metrics,
             referenceFlagstats = normalFlagstat.stats,
             tumorFlagstats = tumorFlagstat.stats,
-            sageGermlineGeneCoverageTsv = germlineSage.sageGeneCoverageTsv,
+            sageGermlineGeneCoverageTsv = germlineVariants.sageGeneCoverageTsv,
             sageSomaticRefSampleBqrPlot = select_first([somaticVariants.referenceSageBqrPng]),
             sageSomaticTumorSampleBqrPlot = somaticVariants.tumorSageBqrPng,
             purpleGeneCopyNumberTsv = purple.purpleCnvGeneTsv,
@@ -709,11 +715,6 @@ workflow WGSinCancerDiagnostics {
             tumorName = tumorName
     }
 
-    call reportPipelineVersion as pipelineVersion {
-        input:
-            versionString = "2.1.0"
-    }
-
     call MakeVafTable as makeVafTable {
         input:
             purpleSomaticVcf = purple.purpleSomaticVcf,
@@ -721,21 +722,43 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./~{tumorName}.somatic_vaf.tsv"
     }
 
+    call multiqc.MultiQC as qcReport {
+        input:
+            reports = flatten([adapterClippingNormal.jsonReport, adapterClippingTumor.jsonReport, 
+                [normalFlagstat.stats, normalCollectMetrics.metrics, normalCollectInsertSizeMetrics.metricsTxt,
+                 tumorFlagstat.stats, tumorCollectMetrics.metrics, tumorCollectInsertSizeMetrics.metricsTxt]])
+    }
+
     output {
-        Array[File] normalQcReports = flatten(flatten(normalQC.reports))
-        Array[File] tumorQcReports = flatten(flatten(tumorQC.reports))
-        # FIXME these might be unnecessary, since purple contains these results as well
-        File structuralVariantsVcf = gripss.filteredVcf
-        File structuralVariantsVcfIndex = gripss.filteredVcfIndex
-        File somaticVcf = somaticAnnotation.outputVcf
-        File somaticVcfIndex = somaticAnnotation.outputVcfIndex
-        File germlineVcf = germlineAnnotation.outputVcf
-        File germlineVcfIndex = germlineAnnotation.outputVcfIndex
-        # FIXME till here
+        File pipelineVersionFile = pipelineVersion.versionFile
+
+        # QC metrics
+        Array[File] normalQcJsons = adapterClippingNormal.jsonReport
+        Array[File] normalQcHtmls = adapterClippingNormal.htmlReport
+        File normalMetrics = normalCollectMetrics.metrics
+        File normalInsertSizeMetricsTxt = normalCollectInsertSizeMetrics.metricsTxt
+        File normalInsertSizeMetricsPdf = normalCollectInsertSizeMetrics.metricsPdf
+        File normalFlagstats = normalFlagstat.stats
+        File normalDriverGeneCoverage = normalCoverage.coverageTsv
+
+        Array[File] tumorQcJsons = adapterClippingTumor.jsonReport
+        Array[File] tumorQcHtmls = adapterClippingTumor.htmlReport
+        File tumorMetrics = tumorCollectMetrics.metrics
+        File tumorInsertSizeMetricsTxt = tumorCollectInsertSizeMetrics.metricsTxt
+        File tumorInsertSizeMetricsPdf = tumorCollectInsertSizeMetrics.metricsPdf
+        File tumorFlagstats = tumorFlagstat.stats
+        File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
+        
+        File healthChecks = healthChecker.outputFile
+        File multiqcReport = qcReport.multiqcReport
+
+        # BAMs
         File normalBam = normalMarkdup.outputBam
         File normalBamIndex = normalMarkdup.outputBamIndex
         File tumorBam = tumorMarkdup.outputBam
         File tumorBamIndex = tumorMarkdup.outputBamIndex
+
+        # Analysis results
         Array[File] cobaltOutput = cobalt.outputs
         Array[File] amberOutput = amber.outputs
         Array[File] purpleOutput = purple.outputs
@@ -743,32 +766,28 @@ workflow WGSinCancerDiagnostics {
         Array[File] linxOutput = linx.outputs
         Array[File] linxPlots = linxVisualisations.plots
         Array[File] linxCircos = linxVisualisations.circos
+        Array[File] peachOutput = peach.outputs
+        File protectTsv = protect.protectTsv
+        File combinedVCF = makeReportedVCF.vcf
+        File vafTable = makeVafTable.vafTable
+
         File HRDprediction = sigAndHRD.chordPrediction
         File signatures = sigAndHRD.chordSignatures
         File signatureRDS = signatureWeights.signatureRDS
-        File healthChecks = healthChecker.outputFile
+
         File cupData = cuppa.cupData
         File cuppaChart = makeCuppaChart.cuppaChart
         File cuppaConclusion = makeCuppaChart.cuppaConclusion
         File cupSummaryPng = cupGenerateReport.summaryPng
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File cupReportPdf = cupGenerateReport.reportPdf
-        File tumorMetrics = tumorCollectMetrics.metrics
-        File tumorFlagstats = tumorFlagstat.stats
-        File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
-        File normalMetrics = normalCollectMetrics.metrics
-        File normalFlagstats = normalFlagstat.stats
-        File normalDriverGeneCoverage = normalCoverage.coverageTsv
+
         File virusbreakendVcf = virusbreakend.vcf
         File virusbreakendSummary = virusbreakend.summary
         File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
-        File protectTsv = protect.protectTsv
-        Array[File] peachOutput = peach.outputs
+
         File orangeJson = orange.orangeJson
         File orangePdf = orange.orangePdf
-        File combinedVCF = makeReportedVCF.vcf
-        File pipelineVersionFile = pipelineVersion.versionFile
-        File vafTable = makeVafTable.vafTable
     }
 }
 
