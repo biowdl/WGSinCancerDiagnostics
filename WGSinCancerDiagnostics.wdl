@@ -711,7 +711,7 @@ workflow WGSinCancerDiagnostics {
 
     call reportPipelineVersion as pipelineVersion {
         input:
-            versionString = "2.1.0"
+            versionString = "2.1.1"
     }
 
     call MakeVafTable as makeVafTable {
