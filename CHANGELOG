@@ -14,12 +14,19 @@ version 3.0.1-dev
 
 version 3.0.0
 ---------------------------
+(Does not include changes from 2.1.1)
+
 + Use fastp for adapter clipping and initial QC metrics collection
   instead of the biowdl QC workflow (which uses cutadapt and fastqc).
   Also replaces fastqsplitter for chunking of the fastq files.
 + Added picard CollectInsertSizeMetrics.
 + Added MultiQC.
 + Increased the number of threads used for duplicate marking to 8 (was 3).
+
+version 2.1.1
+---------------------------
++ Fixed a bug that caused the header of the reportedVAR.vcf output to
+  be malformed.
 
 version 2.1.0
 ---------------------------
