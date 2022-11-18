@@ -153,7 +153,7 @@ workflow WGSinCancerDiagnostics {
             inputBams = flatten(normalBwaMem.outputBam),
             outputPath = "~{normalName}.markdup.bam",
             threads = 8,
-            memoryMb = 25000
+            memoryMb = 50000
     }
 
     call picard.CollectWgsMetrics as normalCollectMetrics {
@@ -230,7 +230,7 @@ workflow WGSinCancerDiagnostics {
             inputBams = flatten(tumorBwaMem.outputBam),
             outputPath = "~{tumorName}.markdup.bam",
             threads = 8,
-            memoryMb = 25000
+            memoryMb = 50000
     }
 
     call picard.CollectWgsMetrics as tumorCollectMetrics {
