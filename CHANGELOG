@@ -11,6 +11,8 @@ version 3.0.1-dev
 ---------------------------
 + Fixed an issue where fastp errors if the number of splits for
   a fastq file is set to 1.
++ Fixed a bug that caused the header of the reportedVAR.vcf output to
+  be malformed. (see v2.1.1)
 
 version 3.0.0
 ---------------------------
