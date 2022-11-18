@@ -13,6 +13,8 @@ version 3.0.1-dev
   a fastq file is set to 1.
 + Fixed a bug that caused the header of the reportedVAR.vcf output to
   be malformed. (see v2.1.1)
++ Memory requested for mark duplicate tasks increased from 25000 Mb to
+  50000 Mb.
 
 version 3.0.0
 ---------------------------
