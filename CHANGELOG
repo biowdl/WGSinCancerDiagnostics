@@ -7,15 +7,30 @@ Newest changes should be on top.
 This document is user facing. Please word the changes in such a way
 that users understand how the changes affect the new version.
 -->
+version 3.0.1-dev
+---------------------------
++ Fixed an issue where fastp errors if the number of splits for
+  a fastq file is set to 1.
++ Fixed a bug that caused the header of the reportedVAR.vcf output to
+  be malformed. (see v2.1.1)
++ Memory requested for mark duplicate tasks increased from 25000 Mb to
+  50000 Mb.
 
 version 3.0.0
 ---------------------------
+(Does not include changes from 2.1.1)
+
 + Use fastp for adapter clipping and initial QC metrics collection
   instead of the biowdl QC workflow (which uses cutadapt and fastqc).
   Also replaces fastqsplitter for chunking of the fastq files.
 + Added picard CollectInsertSizeMetrics.
 + Added MultiQC.
 + Increased the number of threads used for duplicate marking to 8 (was 3).
+
+version 2.1.1
+---------------------------
++ Fixed a bug that caused the header of the reportedVAR.vcf output to
+  be malformed.
 
 version 2.1.0
 ---------------------------

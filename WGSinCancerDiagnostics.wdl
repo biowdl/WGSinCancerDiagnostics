@@ -99,7 +99,7 @@ workflow WGSinCancerDiagnostics {
         Int totalMappingChunks = 25
     }
 
-    String versionString = "3.0.0"
+    String versionString = "3.0.1"
     
     meta {allowNestedInputs: true}
 
@@ -153,7 +153,7 @@ workflow WGSinCancerDiagnostics {
             inputBams = flatten(normalBwaMem.outputBam),
             outputPath = "~{normalName}.markdup.bam",
             threads = 8,
-            memoryMb = 25000
+            memoryMb = 50000
     }
 
     call picard.CollectWgsMetrics as normalCollectMetrics {
@@ -230,7 +230,7 @@ workflow WGSinCancerDiagnostics {
             inputBams = flatten(tumorBwaMem.outputBam),
             outputPath = "~{tumorName}.markdup.bam",
             threads = 8,
-            memoryMb = 25000
+            memoryMb = 50000
     }
 
     call picard.CollectWgsMetrics as tumorCollectMetrics {
@@ -801,7 +801,7 @@ task MakeReportedVCF {
     command <<<
         set -e
         zcat ~{purpleSomaticVcf} | egrep "^##" > ~{tumorName}.reportedVAR.vcf
-        echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumorName}" >> ~{tumorName}.reportedVAR.vcf
+        echo "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumorName}" >> ~{tumorName}.reportedVAR.vcf
         zcat ~{purpleSomaticVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $11}' FS='\t' OFS='\t' >> ~{tumorName}.reportedVAR.vcf
         zcat ~{purpleGermlineVcf} | egrep -v "^#" | egrep "REPORTED" | awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}' FS='\t' OFS='\t' | sed "s#\./\.#0/1#" >> ~{tumorName}.reportedVAR.vcf
     >>>
