@@ -10,7 +10,7 @@ that users understand how the changes affect the new version.
 
 version 2.1.1
 ---------------------------
-+ fixed a bug that caused the header of the reportedVAR.vcf output to
++ Fixed a bug that caused the header of the reportedVAR.vcf output to
   be malformed.
 
 version 2.1.0
