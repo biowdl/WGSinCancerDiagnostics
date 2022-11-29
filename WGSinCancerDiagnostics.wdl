@@ -99,7 +99,7 @@ workflow WGSinCancerDiagnostics {
         Int totalMappingChunks = 25
     }
 
-    String versionString = "3.0.1"
+    String versionString = "3.0.2"
     
     meta {allowNestedInputs: true}
 
@@ -129,7 +129,7 @@ workflow WGSinCancerDiagnostics {
                 htmlPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.html",
                 jsonPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.json",
                 correction = true,
-                split = numberOfChunksNormal,
+                split = if numberOfChunksNormal < 16 then numberOfChunksNormal else 16,
                 performAdapterTrimming = runAdapterClipping
         }
 
@@ -206,7 +206,7 @@ workflow WGSinCancerDiagnostics {
                 htmlPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.html",
                 jsonPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.json",
                 correction = true,
-                split = numberOfChunksTumor,
+                split = if numberOfChunksTumor < 16 then numberOfChunksTumor else 16,
                 performAdapterTrimming = runAdapterClipping
         }
 
