@@ -99,7 +99,7 @@ workflow WGSinCancerDiagnostics {
         Int totalMappingChunks = 25
     }
 
-    String versionString = "3.0.2"
+    String versionString = "3.1.0-dev"
     
     meta {allowNestedInputs: true}
 
@@ -788,6 +788,46 @@ workflow WGSinCancerDiagnostics {
 
         File orangeJson = orange.orangeJson
         File orangePdf = orange.orangePdf
+    }
+}
+
+task CallSpecificSites {
+    input {
+        File bam
+        File bamIndex
+        File sites
+        File referenceFasta
+        String outputPath
+    }
+
+    command {
+        bcftools mpileup \
+        -I \
+        -R ~{sites} \
+        -f ~{referenceFasta} \
+        -a FORMAT/AD,FORMAT/DP \
+        -Q 20 \
+        ~{bam} | \
+        bcftools call -m -A |
+        bcftools +fill-tags -- -t FORMAT/AF:1=1-AD/FORMAT/DP > ~{outputPath}
+    }
+
+    output {
+        File variants = outputPath
+    }
+
+    runtime {
+        memory: "8GiB"
+        runtimeMinutes: 15
+        docker: "quay.io/biocontainers/bcftools:1.16--hfe4b78e_1"
+    }
+
+    parameter_meta {
+        bam: {description: "The BAM file to call variants from.", category: "required"}
+        bamIndex: {description: "The index for the ipnut BAM file.", category: "required"}
+        sites: {description: "A bed file containing the sites to call varianta from.", category: "required"}
+        referenceFasta: {description: "Th reference fasta file.", category: "required"}
+        outputPath: {description: "The path to write the output to.", category: "required"}
     }
 }
 
