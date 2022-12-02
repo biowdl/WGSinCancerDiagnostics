@@ -809,7 +809,8 @@ task CallSpecificSites {
         -Q 20 \
         ~{bam} | \
         bcftools call -m -A |
-        bcftools +fill-tags -- -t FORMAT/AF:1=1-AD/FORMAT/DP > ~{outputPath}
+        bcftools +fill-tags -- -t FORMAT/AF:1=1-AD/FORMAT/DP |
+        bcftools filter > ~{outputPath}
     }
 
     output {
