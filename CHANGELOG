@@ -9,6 +9,7 @@ that users understand how the changes affect the new version.
 -->
 version 3.1.0
 ---------------------------
++ Added a task to call genotypes for specific sites.
 
 version 3.0.2
 ---------------------------
