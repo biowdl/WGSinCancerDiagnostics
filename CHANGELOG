@@ -7,6 +7,10 @@ Newest changes should be on top.
 This document is user facing. Please word the changes in such a way
 that users understand how the changes affect the new version.
 -->
+version 3.0.3
+---------------------------
++ `runAdapterClipping` is now set to true by default.
+
 version 3.0.2
 ---------------------------
 + Limit the number of chunks per fastq file to 16. Fastp will run into

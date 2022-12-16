@@ -95,11 +95,11 @@ workflow WGSinCancerDiagnostics {
         File cohortMapping
         File cohortPercentiles
 
-        Boolean runAdapterClipping = false
+        Boolean runAdapterClipping = true
         Int totalMappingChunks = 25
     }
 
-    String versionString = "3.0.2"
+    String versionString = "3.0.3"
     
     meta {allowNestedInputs: true}
 
