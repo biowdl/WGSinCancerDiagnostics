@@ -96,7 +96,7 @@ workflow WGSinCancerDiagnostics {
         File cohortPercentiles
         File specificCallSites
 
-        Boolean runAdapterClipping = false
+        Boolean runAdapterClipping = true
         Int totalMappingChunks = 25
     }
 
