@@ -727,6 +727,12 @@ workflow WGSinCancerDiagnostics {
             tumorName = tumorName
     }
 
+    call bcftools.Sort as sortReportedVcf {
+        input:
+            inputFile = makeReportedVCF.vcf,
+            outputPath = "~{tumorName}.reportedVAR.sorted.vcf"
+    }
+
     call MakeVafTable as makeVafTable {
         input:
             purpleSomaticVcf = purple.purpleSomaticVcf,
@@ -780,7 +786,7 @@ workflow WGSinCancerDiagnostics {
         Array[File] linxCircos = linxVisualisations.circos
         Array[File] peachOutput = peach.outputs
         File protectTsv = protect.protectTsv
-        File combinedVCF = makeReportedVCF.vcf
+        File combinedVCF = sortReportedVcf.outputVcf
         File vafTable = makeVafTable.vafTable
 
         File HRDprediction = sigAndHRD.chordPrediction
