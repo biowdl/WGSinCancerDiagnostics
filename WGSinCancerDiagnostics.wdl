@@ -100,7 +100,7 @@ workflow WGSinCancerDiagnostics {
         Int totalMappingChunks = 25
     }
 
-    String versionString = "3.1.1-dev"
+    String versionString = "3.1.1"
     
     meta {allowNestedInputs: true}
 
