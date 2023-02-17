@@ -7,8 +7,54 @@ Newest changes should be on top.
 This document is user facing. Please word the changes in such a way
 that users understand how the changes affect the new version.
 -->
+version 3.1.1
+---------------------------
++ Fixed an error in sortReportedVcf caused by an incomplete VCF header.
 
-version 2.1.0-dev
+version 3.1.0
+---------------------------
++ Added a task to call genotypes for specific sites.
+
+version 3.0.3
+---------------------------
++ `runAdapterClipping` is now set to true by default.
+
+version 3.0.2
+---------------------------
++ Limit the number of chunks per fastq file to 16. Fastp will run into
+  issues if the number of chunks is not divisible by the number of
+  threads it uses, which is limited to 16 theads.
++ Runtime attributes for Amber were adjusted:
+  + memory increased from `70GiB` (javaXmx: `64G`) to `85GiB` 
+    (javaXmx: `80G`).
+  + timeMinutes increased from `240` to `480`.
+
+version 3.0.1
+---------------------------
++ Fixed an issue where fastp errors if the number of splits for
+  a fastq file is set to 1.
++ Fixed a bug that caused the header of the reportedVAR.vcf output to
+  be malformed. (see v2.1.1)
++ Memory requested for mark duplicate tasks increased from 25000 Mb to
+  50000 Mb.
+
+version 3.0.0
+---------------------------
+(Does not include changes from 2.1.1)
+
++ Use fastp for adapter clipping and initial QC metrics collection
+  instead of the biowdl QC workflow (which uses cutadapt and fastqc).
+  Also replaces fastqsplitter for chunking of the fastq files.
++ Added picard CollectInsertSizeMetrics.
++ Added MultiQC.
++ Increased the number of threads used for duplicate marking to 8 (was 3).
+
+version 2.1.1
+---------------------------
++ Fixed a bug that caused the header of the reportedVAR.vcf output to
+  be malformed.
+
+version 2.1.0
 ---------------------------
 + Added a task that generates a table of VAFs (as determined by Purple)
   for somatic variants.
