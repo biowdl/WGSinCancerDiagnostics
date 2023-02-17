@@ -106,7 +106,6 @@ workflow WGSinCancerDiagnostics {
         File hlaRefNucleotideSequencesCsv
         File lilacAlleleFrequenciesCsv
    
-
         Boolean runAdapterClipping = true
         Int totalMappingChunks = 25
     }
@@ -403,9 +402,9 @@ workflow WGSinCancerDiagnostics {
 
     call gridss.GRIDSS as structuralVariants {
         input:
-            tumorBam = tumorMarkdup.outputBam,
-            tumorBai = tumorMarkdup.outputBamIndex,
-            tumorLabel = tumorName,
+            tumorBam = [tumorMarkdup.outputBam],
+            tumorBai = [tumorMarkdup.outputBamIndex],
+            tumorLabel = [tumorName],
             normalBam = normalMarkdup.outputBam,
             normalBai = normalMarkdup.outputBamIndex,
             normalLabel = normalName,
