@@ -7,6 +7,16 @@ Newest changes should be on top.
 This document is user facing. Please word the changes in such a way
 that users understand how the changes affect the new version.
 -->
+version 3.2.0-dev
+---------------------------
++ Added the `splitFastq` input to control whether fastq files should
+  get split into chunks or not. Defaults to true.
++ Added the `filterFastq` input to control whether fastq files should
+  get filtered on quality and read length prior to mapping. Default to
+  true.
++ Added the `fastpCorrection` input to control whether fastp's
+  correction should be enabled. DEfaults to true.
+
 version 3.1.1
 ---------------------------
 + Fixed an error in sortReportedVcf caused by an incomplete VCF header.

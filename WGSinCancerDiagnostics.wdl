@@ -97,6 +97,9 @@ workflow WGSinCancerDiagnostics {
         File specificCallSites
 
         Boolean runAdapterClipping = true
+        Boolean splitFastq = true
+        Boolean filterFastq = true
+        Boolean fastpCorrection = true
         Int totalMappingChunks = 25
     }
 
@@ -119,7 +122,9 @@ workflow WGSinCancerDiagnostics {
     # Normal sample
 
     scatter (normalReadgroup in normalReadgroups) {
-        Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
+        Int numberOfChunksNormal = if splitFastq
+            then ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
+            else 1
 
         call fastp.Fastp as adapterClippingNormal {
             input:
@@ -129,9 +134,11 @@ workflow WGSinCancerDiagnostics {
                 outputPathR2 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_2.fq.gz",
                 htmlPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.html",
                 jsonPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.json",
-                correction = true,
+                correction = fastpCorrection,
                 split = if numberOfChunksNormal < 16 then numberOfChunksNormal else 16,
-                performAdapterTrimming = runAdapterClipping
+                performAdapterTrimming = runAdapterClipping,
+                performQualityFiltering = filterFastq,
+                performLengthFiltering = filterFastq
         }
 
         scatter (normalChunkPair in zip(adapterClippingNormal.clippedR1, adapterClippingNormal.clippedR2)) {
@@ -196,7 +203,9 @@ workflow WGSinCancerDiagnostics {
     # Tumor sample
 
     scatter (tumorReadgroup in tumorReadgroups) {
-        Int numberOfChunksTumor = ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
+        Int numberOfChunksTumor = if splitFastq
+            then ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
+            else 1
         
         call fastp.Fastp as adapterClippingTumor {
             input:
@@ -206,9 +215,11 @@ workflow WGSinCancerDiagnostics {
                 outputPathR2 = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_2.fq.gz",
                 htmlPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.html",
                 jsonPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.json",
-                correction = true,
+                correction = fastpCorrection,
                 split = if numberOfChunksTumor < 16 then numberOfChunksTumor else 16,
-                performAdapterTrimming = runAdapterClipping
+                performAdapterTrimming = runAdapterClipping,
+                performQualityFiltering = filterFastq,
+                performLengthFiltering = filterFastq
         }
 
         scatter (tumorChunkPair in zip(adapterClippingTumor.clippedR1, adapterClippingTumor.clippedR2)) {
@@ -437,9 +448,9 @@ workflow WGSinCancerDiagnostics {
 
     call gridss.GRIDSS as structuralVariants {
         input:
-            tumorBam = tumorMarkdup.outputBam,
-            tumorBai = tumorMarkdup.outputBamIndex,
-            tumorLabel = tumorName,
+            tumorBam = [tumorMarkdup.outputBam],
+            tumorBai = [tumorMarkdup.outputBamIndex],
+            tumorLabel = [tumorName],
             normalBam = normalMarkdup.outputBam,
             normalBai = normalMarkdup.outputBamIndex,
             normalLabel = normalName,
