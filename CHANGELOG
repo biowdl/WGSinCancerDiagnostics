@@ -9,6 +9,7 @@ that users understand how the changes affect the new version.
 -->
 version 3.2.0-dev
 ---------------------------
++ Added the `shallow` input to enable shallow mode. Defaults to false.
 + Added the `runPolyGTrimming` input to control whether or not poly-
   G-tail trimming should be performed by fastp. By default fastp's
   default behaviour will be used, ie. enabled for NextSeq/NovaSeq data
