@@ -9,6 +9,10 @@ that users understand how the changes affect the new version.
 -->
 version 3.2.0-dev
 ---------------------------
++ Added the `runPolyGTrimming` input to control whether or not poly-
+  G-tail trimming should be performed by fastp. By default fastp's
+  default behaviour will be used, ie. enabled for NextSeq/NovaSeq data
+  as determined from the FastQ headers.
 + Added the `mappingThreads`  input to control the number of threads
   used per BWA mem job. Defaults to 8.
 + Added the `splitFastq` input to control whether fastq files should

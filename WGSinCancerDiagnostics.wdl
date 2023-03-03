@@ -97,6 +97,7 @@ workflow WGSinCancerDiagnostics {
         File specificCallSites
 
         Boolean runAdapterClipping = true
+        Boolean? runPolyGTrimming # null: default fastp behaviour (ie. enabled for NextSeq/NovaSeq), true: always (-g), false: never (-G)
         Boolean splitFastq = true
         Boolean filterFastq = true
         Boolean fastpCorrection = true
@@ -139,7 +140,8 @@ workflow WGSinCancerDiagnostics {
                 split = if numberOfChunksNormal < 16 then numberOfChunksNormal else 16,
                 performAdapterTrimming = runAdapterClipping,
                 performQualityFiltering = filterFastq,
-                performLengthFiltering = filterFastq
+                performLengthFiltering = filterFastq,
+                performPolyGTrimming = runPolyGTrimming
         }
 
         scatter (normalChunkPair in zip(adapterClippingNormal.clippedR1, adapterClippingNormal.clippedR2)) {
@@ -220,7 +222,8 @@ workflow WGSinCancerDiagnostics {
                 split = if numberOfChunksTumor < 16 then numberOfChunksTumor else 16,
                 performAdapterTrimming = runAdapterClipping,
                 performQualityFiltering = filterFastq,
-                performLengthFiltering = filterFastq
+                performLengthFiltering = filterFastq,
+                performPolyGTrimming = runPolyGTrimming
         }
 
         scatter (tumorChunkPair in zip(adapterClippingTumor.clippedR1, adapterClippingTumor.clippedR2)) {
