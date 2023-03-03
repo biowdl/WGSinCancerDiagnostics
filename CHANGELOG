@@ -9,6 +9,8 @@ that users understand how the changes affect the new version.
 -->
 version 3.2.0-dev
 ---------------------------
++ Added the `mappingThreads`  input to control the number of threads
+  used per BWA mem job. Defaults to 8.
 + Added the `splitFastq` input to control whether fastq files should
   get split into chunks or not. Defaults to true.
 + Added the `filterFastq` input to control whether fastq files should

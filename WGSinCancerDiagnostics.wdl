@@ -101,6 +101,7 @@ workflow WGSinCancerDiagnostics {
         Boolean filterFastq = true
         Boolean fastpCorrection = true
         Int totalMappingChunks = 25
+        Int mappingThreads = 8
     }
 
     String versionString = "3.2.0-dev"
@@ -148,7 +149,7 @@ workflow WGSinCancerDiagnostics {
                     read2 = normalChunkPair.right,
                     readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
-                    threads = 8,
+                    threads = mappingThreads,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
                     outputPrefix = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
@@ -229,7 +230,7 @@ workflow WGSinCancerDiagnostics {
                     read2 = tumorChunkPair.right,
                     readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
-                    threads = 8,
+                    threads = mappingThreads,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
                     outputPrefix = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
