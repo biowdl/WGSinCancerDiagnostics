@@ -929,14 +929,14 @@ task MakeVafTable {
         String dockerImage = "quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2"
     }
 
-    command {
+    command <<<
         set -eo pipefail
         bcftools query \
         -i 'FILTER="PASS"' \
         -f '%CHROM\t%POS\t%INFO/PURPLE_AF\n' \
         ~{purpleSomaticVcf} | \
         { grep -v '^MT' > ~{outputPath} || true; }
-    }
+    >>>
 
     output {
         File vafTable = outputPath
