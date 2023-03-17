@@ -935,8 +935,7 @@ task MakeVafTable {
         -i 'FILTER="PASS"' \
         -f '%CHROM\t%POS\t%INFO/PURPLE_AF\n' \
         ~{purpleSomaticVcf} | \
-        grep -v '^MT' \
-        > ~{outputPath}
+        { grep -v '^MT' > ~{outputPath} || true; }
     }
 
     output {
