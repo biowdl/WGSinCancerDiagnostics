@@ -549,31 +549,32 @@ workflow WGSinCancerDiagnostics {
             somaticMinPuritySpread = if shallow then 0.1 else noneFloat
     }
 
-    # Viral analysis
-
-    call gridss.Virusbreakend as virusbreakend {
-        input:
-            bam = tumorMarkdup.outputBam,
-            bamIndex = tumorMarkdup.outputBamIndex,
-            referenceFasta = referenceFasta,
-            referenceFastaDict = referenceFastaDict,
-            referenceFastaFai = referenceFastaFai,
-            referenceImg = referenceImg,
-            virusbreakendDB = virusbreakendDB
-    }
-
-    call hmftools.VirusInterpreter as virusInterpreter {
-        input:
-            sampleId = tumorName,
-            purplePurityTsv = purple.purplePurityTsv,
-            prupleQcFile = purple.purpleQc,
-            tumorSampleWgsMetricsFile = tumorCollectMetrics.metrics,
-            virusBreakendTsv = virusbreakend.summary,
-            taxonomyDbTsv = taxonomyDbTsv,
-            virusReportingDbTsv = virusReportingDbTsv
-    }
-
     if (! shallow) {
+
+        # Viral analysis
+
+        call gridss.Virusbreakend as virusbreakend {
+            input:
+                bam = tumorMarkdup.outputBam,
+                bamIndex = tumorMarkdup.outputBamIndex,
+                referenceFasta = referenceFasta,
+                referenceFastaDict = referenceFastaDict,
+                referenceFastaFai = referenceFastaFai,
+                referenceImg = referenceImg,
+                virusbreakendDB = virusbreakendDB
+        }
+
+        call hmftools.VirusInterpreter as virusInterpreter {
+            input:
+                sampleId = tumorName,
+                purplePurityTsv = purple.purplePurityTsv,
+                prupleQcFile = purple.purpleQc,
+                tumorSampleWgsMetricsFile = tumorCollectMetrics.metrics,
+                virusBreakendTsv = virusbreakend.summary,
+                taxonomyDbTsv = taxonomyDbTsv,
+                virusReportingDbTsv = virusReportingDbTsv
+        }
+
         call hmftools.Linx as linx {
             input:
                 sampleName = tumorName,
@@ -830,9 +831,9 @@ workflow WGSinCancerDiagnostics {
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File? cupReportPdf = cupGenerateReport.reportPdf
 
-        File virusbreakendVcf = virusbreakend.vcf
-        File virusbreakendSummary = virusbreakend.summary
-        File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
+        File? virusbreakendVcf = virusbreakend.vcf
+        File? virusbreakendSummary = virusbreakend.summary
+        File? virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
 
         File? orangeJson = orange.orangeJson
         File? orangePdf = orange.orangePdf
