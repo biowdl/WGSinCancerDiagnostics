@@ -107,10 +107,19 @@ workflow WGSinCancerDiagnostics {
         File lilacAlleleFrequenciesCsv
    
         Boolean runAdapterClipping = true
+        Boolean? runPolyGTrimming # null: default fastp behaviour (ie. enabled for NextSeq/NovaSeq), true: always (-g), false: never (-G)
+        Boolean splitFastq = true
+        Boolean filterFastq = true
+        Boolean fastpCorrection = true
         Int totalMappingChunks = 25
+        Int mappingThreads = 8
+        Boolean shallow = false
+
+        Int? noneInt
+        Float? noneFloat
     }
 
-    String versionString = "3.2.0-dev"
+    String versionString = "3.2.0"
     
     meta {allowNestedInputs: true}
 
@@ -129,7 +138,9 @@ workflow WGSinCancerDiagnostics {
     # Normal sample
 
     scatter (normalReadgroup in normalReadgroups) {
-        Int numberOfChunksNormal = ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
+        Int numberOfChunksNormal = if splitFastq
+            then ceil(totalMappingChunks * (size(normalReadgroup.read1, "G")  / totalFastqSize))
+            else 1
 
         call fastp.Fastp as adapterClippingNormal {
             input:
@@ -139,9 +150,12 @@ workflow WGSinCancerDiagnostics {
                 outputPathR2 = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_2.fq.gz",
                 htmlPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.html",
                 jsonPath = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}_fastp.json",
-                correction = true,
+                correction = fastpCorrection,
                 split = if numberOfChunksNormal < 16 then numberOfChunksNormal else 16,
-                performAdapterTrimming = runAdapterClipping
+                performAdapterTrimming = runAdapterClipping,
+                performQualityFiltering = filterFastq,
+                performLengthFiltering = filterFastq,
+                performPolyGTrimming = runPolyGTrimming
         }
 
         scatter (normalChunkPair in zip(adapterClippingNormal.clippedR1, adapterClippingNormal.clippedR2)) {
@@ -151,7 +165,7 @@ workflow WGSinCancerDiagnostics {
                     read2 = normalChunkPair.right,
                     readgroup = "@RG\\tID:~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}\\tLB:~{normalReadgroup.library}\\tSM:~{normalName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
-                    threads = 8,
+                    threads = mappingThreads,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
                     outputPrefix = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
@@ -206,7 +220,9 @@ workflow WGSinCancerDiagnostics {
     # Tumor sample
 
     scatter (tumorReadgroup in tumorReadgroups) {
-        Int numberOfChunksTumor = ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
+        Int numberOfChunksTumor = if splitFastq
+            then ceil(totalMappingChunks * (size(tumorReadgroup.read1, "G")  / totalFastqSize))
+            else 1
         
         call fastp.Fastp as adapterClippingTumor {
             input:
@@ -216,9 +232,12 @@ workflow WGSinCancerDiagnostics {
                 outputPathR2 = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}_2.fq.gz",
                 htmlPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.html",
                 jsonPath = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}.json",
-                correction = true,
+                correction = fastpCorrection,
                 split = if numberOfChunksTumor < 16 then numberOfChunksTumor else 16,
-                performAdapterTrimming = runAdapterClipping
+                performAdapterTrimming = runAdapterClipping,
+                performQualityFiltering = filterFastq,
+                performLengthFiltering = filterFastq,
+                performPolyGTrimming = runPolyGTrimming
         }
 
         scatter (tumorChunkPair in zip(adapterClippingTumor.clippedR1, adapterClippingTumor.clippedR2)) {
@@ -228,7 +247,7 @@ workflow WGSinCancerDiagnostics {
                     read2 = tumorChunkPair.right,
                     readgroup = "@RG\\tID:~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}\\tLB:~{tumorReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina",
                     bwaIndex = bwaIndex,
-                    threads = 8,
+                    threads = mappingThreads,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
                     outputPrefix = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
@@ -365,7 +384,8 @@ workflow WGSinCancerDiagnostics {
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv,
-            hg38 = hg38
+            hg38 = hg38,
+            hotspotMinTumorQual = if shallow then 40 else noneInt
     }
 
     call bcftools.Filter as somaticPassFilter {
@@ -507,245 +527,254 @@ workflow WGSinCancerDiagnostics {
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
-            transSpliceDataCsv = transSpliceDataCsv
-    }
-
-    call hmftools.Linx as linx {
-        input:
-            sampleName = tumorName,
-            svVcf = purple.purpleSvVcf,
-            svVcfIndex = purple.purpleSvVcfIndex,
-            purpleOutput = purple.outputs,
-            refGenomeVersion = if hg38 then "38" else "37",
-            fragileSiteCsv = fragileSiteCsv,
-            lineElementCsv = lineElementCsv,
-            knownFusionCsv = knownFusionCsv,
-            driverGenePanel = panelTsv,
-            writeAllVisFusions = true,
-            geneDataCsv = geneDataCsv,
-            proteinFeaturesCsv = proteinFeaturesCsv,
-            transExonDataCsv = transExonDataCsv,
-            transSpliceDataCsv = transSpliceDataCsv
-    }
-
-    call hmftools.Linx as linxGermline {
-        input:
-            sampleName = normalName,
-            svVcf = gripssGermline.filteredVcf,
-            svVcfIndex = gripssGermline.filteredVcfIndex,
-            refGenomeVersion = if hg38 then "38" else "37",
-            lineElementCsv = lineElementCsv,
-            driverGenePanel = panelTsv,
-            geneDataCsv = geneDataCsv,
-            proteinFeaturesCsv = proteinFeaturesCsv,
-            transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv,
-            germline = true,
-            checkFusions = false,
-            checkDrivers = false,
-            writeVisData = false,
-            germlinePonSvFile = breakpointPon,
-            germlinePonSglFile = breakendPon
+            highlyDiploidPercentage = if shallow then 0.88 else noneFloat,
+            somaticMinPuritySpread = if shallow then 0.1 else noneFloat
     }
 
-    call hmftools.LinxVisualisations as linxVisualisations {
-        input:
-            sample = tumorName,
-            refGenomeVersion = if hg38 then "38" else "37",
-            linxOutput = linx.outputs,
-            plotReportable = false #TODO might need to be enabled
+    if (! shallow) {
+
+        # Viral analysis
+
+        call gridss.Virusbreakend as virusbreakend {
+            input:
+                bam = tumorMarkdup.outputBam,
+                bamIndex = tumorMarkdup.outputBamIndex,
+                referenceFasta = referenceFasta,
+                referenceFastaDict = referenceFastaDict,
+                referenceFastaFai = referenceFastaFai,
+                referenceImg = referenceImg,
+                virusbreakendDB = virusbreakendDB
+        }
+
+        call hmftools.VirusInterpreter as virusInterpreter {
+            input:
+                sampleId = tumorName,
+                purplePurityTsv = purple.purplePurityTsv,
+                prupleQcFile = purple.purpleQc,
+                tumorSampleWgsMetricsFile = tumorCollectMetrics.metrics,
+                virusBreakendTsv = virusbreakend.summary,
+                taxonomyDbTsv = taxonomyDbTsv,
+                virusReportingDbTsv = virusReportingDbTsv
+        }
+
+        call hmftools.Linx as linx {
+            input:
+                sampleName = tumorName,
+                svVcf = purple.purpleSvVcf,
+                svVcfIndex = purple.purpleSvVcfIndex,
+                purpleOutput = purple.outputs,
+                refGenomeVersion = if hg38 then "38" else "37",
+                fragileSiteCsv = fragileSiteCsv,
+                lineElementCsv = lineElementCsv,
+                knownFusionCsv = knownFusionCsv,
+                driverGenePanel = panelTsv,
+                writeAllVisFusions = true,
+                geneDataCsv = geneDataCsv,
+                proteinFeaturesCsv = proteinFeaturesCsv,
+                transExonDataCsv = transExonDataCsv,
+                transSpliceDataCsv = transSpliceDataCsv
+        }
+
+        call hmftools.Linx as linxGermline {
+            input:
+                sampleName = normalName,
+                svVcf = gripssGermline.filteredVcf,
+                svVcfIndex = gripssGermline.filteredVcfIndex,
+                refGenomeVersion = if hg38 then "38" else "37",
+                lineElementCsv = lineElementCsv,
+                driverGenePanel = panelTsv,
+                geneDataCsv = geneDataCsv,
+                proteinFeaturesCsv = proteinFeaturesCsv,
+                transExonDataCsv = transExonDataCsv,
+                transSpliceDataCsv = transSpliceDataCsv,
+                germline = true,
+                checkFusions = false,
+                checkDrivers = false,
+                writeVisData = false,
+                germlinePonSvFile = breakpointPon,
+                germlinePonSglFile = breakendPon
+        }
+
+        call hmftools.LinxVisualisations as linxVisualisations {
+            input:
+                sample = tumorName,
+                refGenomeVersion = if hg38 then "38" else "37",
+                linxOutput = linx.outputs,
+                plotReportable = false #TODO might need to be enabled
+        }
+
+        # HLA
+
+        call sambamba.Slice as somaticHLAbam {
+            input:
+                bamFile = tumorMarkdup.outputBam,
+                bamIndex = tumorMarkdup.outputBamIndex,
+                outputPath = "./~{tumorName}_HLA.bam",
+                regions = hlaRegions
+        }
+
+        call sambamba.Slice as germlineHLAbam {
+            input:
+                bamFile = normalMarkdup.outputBam,
+                bamIndex = normalMarkdup.outputBamIndex,
+                outputPath = "./~{normalName}_HLA.bam",
+                regions = hlaRegions
+        }
+
+        call hmftools.Lilac as lilac {
+            input:
+                tumorName = tumorName,
+                referenceBam = germlineHLAbam.slicedBam,
+                referenceBamIndex = germlineHLAbam.slicedBamIndex,
+                tumorBam = somaticHLAbam.slicedBam,
+                tumorBamIndex = somaticHLAbam.slicedBamIndex,
+                refGenomeVersion = if hg38 then "38" else "37",
+                referenceFasta = referenceFasta,
+                referenceFastaFai = referenceFastaFai,
+                referenceFastaDict = referenceFastaDict,
+                geneCopyNumberFile = purple.purpleCnvGeneTsv,
+                somaticVariantsFile = purple.purpleSomaticVcf,
+                somaticVariantsFileIndex = purple.purpleSomaticVcfIndex,
+                hlaRefAminoacidSequencesCsv = hlaRefAminoacidSequencesCsv,
+                hlaRefNucleotideSequencesCsv = hlaRefNucleotideSequencesCsv,
+                lilacAlleleFrequenciesCsv = lilacAlleleFrequenciesCsv
+        }
+
+        # Signatures
+
+        call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
+            input:
+                sampleName = tumorName,
+                snvIndelVcf = somaticAnnotation.outputVcf,
+                snvIndelVcfIndex = somaticAnnotation.outputVcfIndex,
+                svVcf = gripss.filteredVcf,
+                svVcfIndex = gripss.filteredVcfIndex,
+                hg38 = hg38
+        }
+
+        call deconstructSigs.DeconstructSigs as signatureWeights {
+            input:
+                signaturesMatrix = sigAndHRD.chordSignatures,
+                signaturesReference = cosmicSignatures
+        }
+
+        # post-analysis QC
+
+        call hmftools.HealthChecker as healthChecker {
+            input:
+                referenceName = normalName,
+                referenceFlagstats = normalFlagstat.stats,
+                referenceMetrics = normalCollectMetrics.metrics,
+                tumorName = tumorName,
+                tumorFlagstats= tumorFlagstat.stats,
+                tumorMetrics = tumorCollectMetrics.metrics,
+                purpleOutput = purple.outputs
+        }
+
+        # CUP prediction
+
+        call hmftools.Cuppa as cuppa  {
+            input:
+                linxOutput = linx.outputs,
+                purpleOutput = purple.outputs,
+                sampleName = tumorName,
+                categories = ["DNA"],
+                referenceData = cuppaReferenceData,
+                purpleSvVcf = purple.purpleSvVcf,
+                purpleSvVcfIndex = purple.purpleSvVcfIndex,
+                purpleSomaticVcf = purple.purpleSomaticVcf,
+                purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex
+        }
+
+        call hmftools.CuppaChart as makeCuppaChart {
+            input:
+                sampleName = tumorName,
+                cupData = cuppa.cupData
+        }
+
+        call hmftools.CupGenerateReport as cupGenerateReport {
+            input:
+                sampleName = tumorName,
+                cupData = cuppa.cupData
+        }
+
+        # Reporting
+
+        call hmftools.Protect as protect {
+            input:
+                refGenomeVersion = if hg38 then "38" else "37",
+                tumorName = tumorName,
+                referenceName = normalName,
+                sampleDoids = sampleDoids,
+                serveActionability = serveActionability,
+                doidJson = doidsJson,
+                purplePurity = purple.purplePurityTsv,
+                purpleQc = purple.purpleQc,
+                purpleDriverCatalogSomatic = purple.driverCatalogSomaticTsv,
+                purpleDriverCatalogGermline = purple.driverCatalogGermlineTsv,
+                purpleSomaticVariants = purple.purpleSomaticVcf,
+                purpleSomaticVariantsIndex = purple.purpleSomaticVcfIndex,
+                purpleGermlineVariants = purple.purpleGermlineVcf,
+                purpleGermlineVariantsIndex = purple.purpleGermlineVcfIndex,
+                purpleGeneCopyNumber = purple.purpleCnvGeneTsv,
+                linxFusion = linx.linxFusion,
+                linxBreakend = linx.linxBreakend,
+                linxDriversCatalog = linx.driverCatalog,
+                chordPrediction = sigAndHRD.chordPrediction,
+                annotatedVirus = virusInterpreter.virusAnnotatedTsv
+        }
+
+        call peachTask.Peach as peach {
+            input:
+                germlineVcf= purple.purpleGermlineVcf,
+                germlineVcfIndex = purple.purpleGermlineVcfIndex,
+                tumorName = tumorName,
+                normalName = normalName,
+                panelJson = peachPanelJson
+        }
+
+        call hmftools.Orange as orange {
+            input:
+                doidJson = doidsJson,
+                sampleDoids = sampleDoids,
+                tumorName = tumorName,
+                referenceName = normalName,
+                referenceMetrics = normalCollectMetrics.metrics,
+                tumorMetrics = tumorCollectMetrics.metrics,
+                referenceFlagstats = normalFlagstat.stats,
+                tumorFlagstats = tumorFlagstat.stats,
+                sageGermlineGeneCoverageTsv = germlineVariants.sageGeneCoverageTsv,
+                sageSomaticRefSampleBqrPlot = select_first([somaticVariants.referenceSageBqrPng]),
+                sageSomaticTumorSampleBqrPlot = somaticVariants.tumorSageBqrPng,
+                purpleGeneCopyNumberTsv = purple.purpleCnvGeneTsv,
+                purpleGermlineDriverCatalogTsv = purple.driverCatalogGermlineTsv,
+                purpleGermlineVariantVcf = purple.purpleGermlineVcf,
+                purpleGermlineVariantVcfIndex = purple.purpleGermlineVcfIndex,
+                purplePlots = purple.plots,
+                purplePurityTsv = purple.purplePurityTsv,
+                purpleQcFile = purple.purpleQc,
+                purpleSomaticDriverCatalogTsv = purple.driverCatalogSomaticTsv,
+                purpleSomaticVariantVcf = purple.purpleSomaticVcf,
+                purpleSomaticVariantVcfIndex = purple.purpleSomaticVcfIndex,
+                linxFusionTsv = linx.linxFusion,
+                linxBreakendTsv = linx.linxBreakend,
+                linxDriverCatalogTsv = linx.driverCatalog,
+                linxDriverTsv = linx.linxDrivers,
+                linxPlots = linxVisualisations.plots,
+                cuppaResultCsv = cuppa.cupData,
+                cuppaSummaryPlot = cupGenerateReport.summaryPng,
+                cuppaFeaturePlot = cupGenerateReport.featuresPng,
+                chordPredictionTxt = sigAndHRD.chordPrediction,
+                peachGenotypeTsv = peach.genotypeTsv,
+                protectEvidenceTsv = protect.protectTsv,
+                annotatedVirusTsv = virusInterpreter.virusAnnotatedTsv,
+                cohortMappingTsv = cohortMapping,
+                cohortPercentilesTsv = cohortPercentiles
+        }
     }
 
-    call hmftools.Lilac as lilac {
-        input:
-            tumorName = tumorName,
-            referenceBam = germlineHLAbam.slicedBam,
-            referenceBamIndex = germlineHLAbam.slicedBamIndex,
-            tumorBam = somaticHLAbam.slicedBam,
-            tumorBamIndex = somaticHLAbam.slicedBamIndex,
-            refGenomeVersion = if hg38 then "38" else "37",
-            referenceFasta = referenceFasta,
-            referenceFastaFai = referenceFastaFai,
-            referenceFastaDict = referenceFastaDict,
-            geneCopyNumberFile = purple.purpleCnvGeneTsv,
-            somaticVariantsFile = purple.purpleSomaticVcf,
-            somaticVariantsFileIndex = purple.purpleSomaticVcfIndex,
-            hlaRefAminoacidSequencesCsv = hlaRefAminoacidSequencesCsv,
-            hlaRefNucleotideSequencesCsv = hlaRefNucleotideSequencesCsv,
-            lilacAlleleFrequenciesCsv = lilacAlleleFrequenciesCsv
-    }
-
-    # Signatures
-
-    call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
-        input:
-            sampleName = tumorName,
-            snvIndelVcf = somaticAnnotation.outputVcf,
-            snvIndelVcfIndex = somaticAnnotation.outputVcfIndex,
-            svVcf = gripss.filteredVcf,
-            svVcfIndex = gripss.filteredVcfIndex,
-            hg38 = hg38
-    }
-
-    call deconstructSigs.DeconstructSigs as signatureWeights {
-        input:
-            signaturesMatrix = sigAndHRD.chordSignatures,
-            signaturesReference = cosmicSignatures
-    }
-
-    # post-analysis QC
-
-    call hmftools.HealthChecker as healthChecker {
-        input:
-            referenceName = normalName,
-            referenceFlagstats = normalFlagstat.stats,
-            referenceMetrics = normalCollectMetrics.metrics,
-            tumorName = tumorName,
-            tumorFlagstats= tumorFlagstat.stats,
-            tumorMetrics = tumorCollectMetrics.metrics,
-            purpleOutput = purple.outputs
-    }
-
-    # CUP prediction
-
-    call hmftools.Cuppa as cuppa  {
-        input:
-            linxOutput = linx.outputs,
-            purpleOutput = purple.outputs,
-            sampleName = tumorName,
-            categories = ["DNA"],
-            referenceData = cuppaReferenceData,
-            purpleSvVcf = purple.purpleSvVcf,
-            purpleSvVcfIndex = purple.purpleSvVcfIndex,
-            purpleSomaticVcf = purple.purpleSomaticVcf,
-            purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex
-    }
-
-    call hmftools.CuppaChart as makeCuppaChart {
-        input:
-            sampleName = tumorName,
-            cupData = cuppa.cupData
-    }
-
-    call hmftools.CupGenerateReport as cupGenerateReport {
-        input:
-            sampleName = tumorName,
-            cupData = cuppa.cupData
-    }
-
-    # Viral analysis
-
-    call gridss.Virusbreakend as virusbreakend {
-        input:
-            bam = tumorMarkdup.outputBam,
-            bamIndex = tumorMarkdup.outputBamIndex,
-            referenceFasta = referenceFasta,
-            referenceFastaDict = referenceFastaDict,
-            referenceFastaFai = referenceFastaFai,
-            referenceImg = referenceImg,
-            virusbreakendDB = virusbreakendDB
-    }
-
-    call hmftools.VirusInterpreter as virusInterpreter {
-        input:
-            sampleId = tumorName,
-            purplePurityTsv = purple.purplePurityTsv,
-            prupleQcFile = purple.purpleQc,
-            tumorSampleWgsMetricsFile = tumorCollectMetrics.metrics,
-            virusBreakendTsv = virusbreakend.summary,
-            taxonomyDbTsv = taxonomyDbTsv,
-            virusReportingDbTsv = virusReportingDbTsv
-    }
-
-    # Reporting
-
-    call hmftools.Protect as protect {
-        input:
-            refGenomeVersion = if hg38 then "38" else "37",
-            tumorName = tumorName,
-            referenceName = normalName,
-            sampleDoids = sampleDoids,
-            serveActionability = serveActionability,
-            doidJson = doidsJson,
-            purplePurity = purple.purplePurityTsv,
-            purpleQc = purple.purpleQc,
-            purpleDriverCatalogSomatic = purple.driverCatalogSomaticTsv,
-            purpleDriverCatalogGermline = purple.driverCatalogGermlineTsv,
-            purpleSomaticVariants = purple.purpleSomaticVcf,
-            purpleSomaticVariantsIndex = purple.purpleSomaticVcfIndex,
-            purpleGermlineVariants = purple.purpleGermlineVcf,
-            purpleGermlineVariantsIndex = purple.purpleGermlineVcfIndex,
-            purpleGeneCopyNumber = purple.purpleCnvGeneTsv,
-            linxFusion = linx.linxFusion,
-            linxBreakend = linx.linxBreakend,
-            linxDriversCatalog = linx.driverCatalog,
-            chordPrediction = sigAndHRD.chordPrediction,
-            annotatedVirus = virusInterpreter.virusAnnotatedTsv
-    }
-
-    call peachTask.Peach as peach {
-        input:
-            germlineVcf= purple.purpleGermlineVcf,
-            germlineVcfIndex = purple.purpleGermlineVcfIndex,
-            tumorName = tumorName,
-            normalName = normalName,
-            panelJson = peachPanelJson
-    }
-
-    call sambamba.Slice as somaticHLAbam {
-        input:
-            bamFile = tumorMarkdup.outputBam,
-            bamIndex = tumorMarkdup.outputBamIndex,
-            outputPath = "./~{tumorName}_HLA.bam",
-            regions = hlaRegions
-    }
-
-    call sambamba.Slice as germlineHLAbam {
-        input:
-            bamFile = normalMarkdup.outputBam,
-            bamIndex = normalMarkdup.outputBamIndex,
-            outputPath = "./~{normalName}_HLA.bam",
-            regions = hlaRegions
-    }
-
-    call hmftools.Orange as orange {
-        input:
-            doidJson = doidsJson,
-            sampleDoids = sampleDoids,
-            tumorName = tumorName,
-            referenceName = normalName,
-            referenceMetrics = normalCollectMetrics.metrics,
-            tumorMetrics = tumorCollectMetrics.metrics,
-            referenceFlagstats = normalFlagstat.stats,
-            tumorFlagstats = tumorFlagstat.stats,
-            sageGermlineGeneCoverageTsv = germlineVariants.sageGeneCoverageTsv,
-            sageSomaticRefSampleBqrPlot = select_first([somaticVariants.referenceSageBqrPng]),
-            sageSomaticTumorSampleBqrPlot = somaticVariants.tumorSageBqrPng,
-            purpleGeneCopyNumberTsv = purple.purpleCnvGeneTsv,
-            purpleGermlineDriverCatalogTsv = purple.driverCatalogGermlineTsv,
-            purpleGermlineVariantVcf = purple.purpleGermlineVcf,
-            purpleGermlineVariantVcfIndex = purple.purpleGermlineVcfIndex,
-            purplePlots = purple.plots,
-            purplePurityTsv = purple.purplePurityTsv,
-            purpleQcFile = purple.purpleQc,
-            purpleSomaticDriverCatalogTsv = purple.driverCatalogSomaticTsv,
-            purpleSomaticVariantVcf = purple.purpleSomaticVcf,
-            purpleSomaticVariantVcfIndex = purple.purpleSomaticVcfIndex,
-            linxFusionTsv = linx.linxFusion,
-            linxBreakendTsv = linx.linxBreakend,
-            linxDriverCatalogTsv = linx.driverCatalog,
-            linxDriverTsv = linx.linxDrivers,
-            linxPlots = linxVisualisations.plots,
-            cuppaResultCsv = cuppa.cupData,
-            cuppaSummaryPlot = cupGenerateReport.summaryPng,
-            cuppaFeaturePlot = cupGenerateReport.featuresPng,
-            chordPredictionTxt = sigAndHRD.chordPrediction,
-            peachGenotypeTsv = peach.genotypeTsv,
-            protectEvidenceTsv = protect.protectTsv,
-            annotatedVirusTsv = virusInterpreter.virusAnnotatedTsv,
-            cohortMappingTsv = cohortMapping,
-            cohortPercentilesTsv = cohortPercentiles
-    }
+    # Reported variants VCF
 
     call CallSpecificSites as specificSites {
         input:
@@ -771,12 +800,16 @@ workflow WGSinCancerDiagnostics {
             outputPath = "~{tumorName}.reportedVAR.sorted.vcf"
     }
 
+    # VAF table
+
     call MakeVafTable as makeVafTable {
         input:
             purpleSomaticVcf = purple.purpleSomaticVcf,
             purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex,
             outputPath = "./~{tumorName}.somatic_vaf.tsv"
     }
+
+    #MultiQC
 
     call multiqc.MultiQC as qcReport {
         input:
@@ -805,7 +838,7 @@ workflow WGSinCancerDiagnostics {
         File tumorFlagstats = tumorFlagstat.stats
         File tumorDriverGeneCoverage = tumorCoverage.coverageTsv
         
-        File healthChecks = healthChecker.outputFile
+        File? healthChecks = healthChecker.outputFile
         File multiqcReport = qcReport.multiqcReport
 
         # BAMs
@@ -815,35 +848,35 @@ workflow WGSinCancerDiagnostics {
         File tumorBamIndex = tumorMarkdup.outputBamIndex
 
         # Analysis results
-        Array[File] cobaltOutput = cobalt.outputs
-        Array[File] amberOutput = amber.outputs
+        Array[File]? cobaltOutput = cobalt.outputs
+        Array[File]? amberOutput = amber.outputs
         Array[File] purpleOutput = purple.outputs
         Array[File] purplePlots = purple.plots
-        Array[File] linxOutput = linx.outputs
-        Array[File] linxPlots = linxVisualisations.plots
-        Array[File] linxCircos = linxVisualisations.circos
-        Array[File] peachOutput = peach.outputs
-        File protectTsv = protect.protectTsv
+        Array[File]? linxOutput = linx.outputs
+        Array[File]? linxPlots = linxVisualisations.plots
+        Array[File]? linxCircos = linxVisualisations.circos
+        Array[File]? peachOutput = peach.outputs
+        File? protectTsv = protect.protectTsv
         File combinedVCF = sortReportedVcf.outputVcf
         File vafTable = makeVafTable.vafTable
 
-        File HRDprediction = sigAndHRD.chordPrediction
-        File signatures = sigAndHRD.chordSignatures
-        File signatureRDS = signatureWeights.signatureRDS
+        File? HRDprediction = sigAndHRD.chordPrediction
+        File? signatures = sigAndHRD.chordSignatures
+        File? signatureRDS = signatureWeights.signatureRDS
 
-        File cupData = cuppa.cupData
-        File cuppaChart = makeCuppaChart.cuppaChart
-        File cuppaConclusion = makeCuppaChart.cuppaConclusion
-        File cupSummaryPng = cupGenerateReport.summaryPng
+        File? cupData = cuppa.cupData
+        File? cuppaChart = makeCuppaChart.cuppaChart
+        File? cuppaConclusion = makeCuppaChart.cuppaConclusion
+        File? cupSummaryPng = cupGenerateReport.summaryPng
         File? cupFeaturesPng = cupGenerateReport.featuresPng
-        File cupReportPdf = cupGenerateReport.reportPdf
+        File? cupReportPdf = cupGenerateReport.reportPdf
 
-        File virusbreakendVcf = virusbreakend.vcf
-        File virusbreakendSummary = virusbreakend.summary
-        File virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
+        File? virusbreakendVcf = virusbreakend.vcf
+        File? virusbreakendSummary = virusbreakend.summary
+        File? virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
 
-        File orangeJson = orange.orangeJson
-        File orangePdf = orange.orangePdf
+        File? orangeJson = orange.orangeJson
+        File? orangePdf = orange.orangePdf
     }
 }
 
@@ -937,15 +970,14 @@ task MakeVafTable {
         String dockerImage = "quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2"
     }
 
-    command {
+    command <<<
         set -eo pipefail
         bcftools query \
         -i 'FILTER="PASS"' \
         -f '%CHROM\t%POS\t%INFO/PURPLE_AF\n' \
         ~{purpleSomaticVcf} | \
-        grep -v '^MT' \
-        > ~{outputPath}
-    }
+        { grep -v '^MT' > ~{outputPath} || true; }
+    >>>
 
     output {
         File vafTable = outputPath
