@@ -115,6 +115,9 @@ workflow WGSinCancerDiagnostics {
         Int mappingThreads = 8
         Boolean shallow = false
 
+        File? targetRegionsBed
+        File? targetRegionsNormalisationTsv
+
         Int? noneInt
         Float? noneFloat
     }
@@ -126,6 +129,16 @@ workflow WGSinCancerDiagnostics {
     call reportPipelineVersion as pipelineVersion {
         input:
             versionString = versionString
+    }
+
+    # prepare intervallist
+
+    if (defined(targetRegionsBed)) {
+        call picard.BedToIntervalList as makeIntervalList {
+            input:
+                bedFile = select_first([targetRegionsBed]),
+                dict = referenceFastaDict
+        }
     }
 
     # Calculate the total size of fastq files so we can use it to split
@@ -191,7 +204,8 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./~{normalName}.wgs_metrics.txt",
             minimumMappingQuality = 20,
             minimumBaseQuality = 10,
-            coverageCap = 250
+            coverageCap = 250,
+            intervals = makeIntervalList.intervalList
     }
 
     call picard.CollectInsertSizeMetrics as normalCollectInsertSizeMetrics {
@@ -273,7 +287,8 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./~{tumorName}.wgs_metrics.txt",
             minimumMappingQuality = 20,
             minimumBaseQuality = 10,
-            coverageCap = 250
+            coverageCap = 250,
+            intervals = makeIntervalList.intervalList
     }
 
     call picard.CollectInsertSizeMetrics as tumorCollectInsertSizeMetrics {
@@ -489,10 +504,11 @@ workflow WGSinCancerDiagnostics {
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
-            refGenomeVersion = if hg38 then "38" else "37"
+            refGenomeVersion = if hg38 then "38" else "37",
+            tumorOnlyMinDepth = if defined(targetRegionsBed) then 80 else noneInt
     }
 
-    call hmftools.Cobalt as cobalt {
+    call hmftools.Cobalt as cobalt { #TODO tumor only diploid bed
         input:
             referenceName = normalName,
             referenceBam = normalMarkdup.outputBam,
@@ -500,7 +516,9 @@ workflow WGSinCancerDiagnostics {
             tumorName = tumorName,
             tumorBam = tumorMarkdup.outputBam,
             tumorBamIndex = tumorMarkdup.outputBamIndex,
-            gcProfile = gcProfile
+            gcProfile = gcProfile,
+            targetRegionsNormalisationTsv = targetRegionsNormalisationTsv,
+            pcfGamma = if defined(targetRegionsNormalisationTsv) then 15 else noneInt
     }
 
     call hmftools.Purple as purple {
