@@ -119,7 +119,7 @@ workflow WGSinCancerDiagnostics {
         Float? noneFloat
     }
 
-    String versionString = "3.2.0"
+    String versionString = "4.0.0-dev"
     
     meta {allowNestedInputs: true}
 
