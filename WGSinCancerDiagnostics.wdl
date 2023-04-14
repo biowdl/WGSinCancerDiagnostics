@@ -57,7 +57,9 @@ workflow WGSinCancerDiagnostics {
         Array[File]+ viralReferenceBwaIndex
         File breakendPon
         File breakpointPon
+        File repeatMaskerDb
         File ponFile
+        File ponArtefactFile
         File likelyHeterozygousLoci
         File gcProfile
         File panelTsv
@@ -100,6 +102,7 @@ workflow WGSinCancerDiagnostics {
         Array[File]+ gnomadFreqFiles = [] # only used for hg38
         File hlaRegions
         File germlineDelFreqFile
+        File svPrepBlacklistBed
 
         #The following need to be in the same directory
         File hlaRefAminoacidSequencesCsv
@@ -117,6 +120,8 @@ workflow WGSinCancerDiagnostics {
 
         File? targetRegionsBed
         File? targetRegionsNormalisationTsv
+        File? targetRegionsRatios
+        File? targetRegionsMsiIndels
 
         Int? noneInt
         Float? noneFloat
@@ -316,15 +321,15 @@ workflow WGSinCancerDiagnostics {
 
     # germline calling
 
-    call hmftools.Sage as germlineVariants {
+    call hmftools.Sage as germlineVariants { #TODO multiple tumors and normals, Don't run on tumor only mode, 
         # use tumor as normal and normal as tumor
         input:
-            tumorName = normalName,
-            tumorBam = normalMarkdup.outputBam,
-            tumorBamIndex = normalMarkdup.outputBamIndex,
-            referenceName = tumorName,
-            referenceBam = tumorMarkdup.outputBam,
-            referenceBamIndex = tumorMarkdup.outputBamIndex,
+            tumorName = [normalName],
+            tumorBam = [normalMarkdup.outputBam],
+            tumorBamIndex = [normalMarkdup.outputBamIndex],
+            referenceName = [tumorName],
+            referenceBam = [tumorMarkdup.outputBam],
+            referenceBamIndex = [tumorMarkdup.outputBamIndex],
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -343,8 +348,8 @@ workflow WGSinCancerDiagnostics {
             hotspotMaxGermlineRelRawBaseQual = 100,
             panelMaxGermlineVaf = 100,
             panelMaxGermlineRelRawBaseQual = 100,
-            mnvFilterEnabled = "false",
             coverageBed = germlineCoveragePanel,
+            refSampleCount = 0,
             panelOnly = true
     }
 
@@ -356,7 +361,7 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./germlineSage.passFilter.vcf.gz"
     }
 
-    call hmftools.Pave as germlineAnnotation {
+    call hmftools.Pave as germlineAnnotation { #TODO don't run if tumor only
         input:
             sampleName = tumorName, #Hartwig pipeline give tumor sample name even for germline pave run
             vcfFile = germlinePassFilter.outputVcf,
@@ -380,14 +385,14 @@ workflow WGSinCancerDiagnostics {
 
     # somatic calling
 
-    call hmftools.Sage as somaticVariants {
+    call hmftools.Sage as somaticVariants { #TODO multiple normals/tumors, tumor only mode simply doesn't give reference samples
         input:
-            tumorName = tumorName,
-            tumorBam = tumorMarkdup.outputBam,
-            tumorBamIndex = tumorMarkdup.outputBamIndex,
-            referenceName = normalName,
-            referenceBam = normalMarkdup.outputBam,
-            referenceBamIndex = normalMarkdup.outputBamIndex,
+            tumorName = [tumorName],
+            tumorBam = [tumorMarkdup.outputBam],
+            tumorBamIndex = [tumorMarkdup.outputBamIndex],
+            referenceName = [normalName],
+            referenceBam = [normalMarkdup.outputBam],
+            referenceBamIndex = [normalMarkdup.outputBamIndex],
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -400,7 +405,11 @@ workflow WGSinCancerDiagnostics {
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv,
             hg38 = hg38,
-            hotspotMinTumorQual = if shallow then 40 else noneInt
+            hotspotMinTumorQual = if defined(targetRegionsBed) then 150 else if shallow then 40 else noneInt,
+            hotspotMinTumorVaf = if defined(targetRegionsBed) then 0.01 else noneFloat,
+            panelMinTumorQual = if defined(targetRegionsBed) then 250 else noneInt,
+            highConfidenceMinTumorQual = if defined(targetRegionsBed) then 350 else noneInt,
+            lowConfidenceMinTumorQual = if defined(targetRegionsBed) then 500 else noneInt
     }
 
     call bcftools.Filter as somaticPassFilter {
@@ -411,7 +420,7 @@ workflow WGSinCancerDiagnostics {
             outputPath = "./sage.passFilter.vcf.gz"
     }
 
-    call hmftools.Pave as somaticAnnotation {
+    call hmftools.Pave as somaticAnnotation { # if tumor only: writePassOnly
         input:
             sampleName = tumorName,
             vcfFile = somaticPassFilter.outputVcf,
@@ -423,6 +432,7 @@ workflow WGSinCancerDiagnostics {
             driverGenePanel = panelTsv,
             mappabilityBed = mappabilityBed,
             ponFile = ponFile,
+            ponArtefactFile = ponArtefactFile,
             ponFilters = if hg38
                 then "HOTSPOT:5:5;PANEL:2:5;UNKNOWN:2:0"
                 else "HOTSPOT:10:5;PANEL:6:5;UNKNOWN:6:0",
@@ -435,42 +445,82 @@ workflow WGSinCancerDiagnostics {
 
     # SVs and CNVs
 
-    call gridss.GRIDSS as structuralVariants {
+    call hmftools.SvPrep as svPrepTumor {
+        input:
+            sampleName = tumorName,
+            bamFile = tumorMarkdup.outputBam,
+            bamIndex = tumorMarkdup.outputBamIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            blacklistBed = svPrepBlacklistBed,
+            knownFusionBed = knownFusionPairBedpe,
+            hg38 = hg38
+    }
+
+    call hmftools.SvPrep as svPrepNormal { #TODO don't run in tumor only mode
+        input:
+            sampleName = normalName,
+            bamFile = normalMarkdup.outputBam,
+            bamIndex = normalMarkdup.outputBamIndex,
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            blacklistBed = svPrepBlacklistBed,
+            knownFusionBed = knownFusionPairBedpe,
+            existingJunctionFile = svPrepTumor.junctions,
+            hg38 = hg38
+    }
+
+    call gridss.GridssSvPrep as structuralVariants { #TODO tumor only: don't provide normal
         input:
             tumorBam = [tumorMarkdup.outputBam],
             tumorBai = [tumorMarkdup.outputBamIndex],
+            tumorFilteredBam = [svPrepTumor.preppedBam],
+            tumorFilteredBai = [svPrepTumor.preppedBamIndex],
             tumorLabel = [tumorName],
             normalBam = normalMarkdup.outputBam,
             normalBai = normalMarkdup.outputBamIndex,
+            normalFilteredBam = svPrepNormal.preppedBam,
+            normalFilteredBai = svPrepNormal.preppedBamIndex,
             normalLabel = normalName,
             reference = bwaIndex,
             blacklistBed = gridssBlacklistBed,
             gridssProperties = gridssProperties
     }
 
-    call gridss.GridssAnnotateVcfRepeatmasker as gridssRepeatMasker {
+    call hmftools.SvPrepDepthAnnotator as svDepthAnnotation { #TODO tumor only: don't provide normal
         input:
-            gridssVcf = structuralVariants.vcf,
-            gridssVcfIndex = structuralVariants.vcfIndex
+            inputVcf = structuralVariants.vcf,
+            inputVcfIndex = structuralVariants.vcfIndex,
+            samples = [normalName, tumorName],
+            bamFiles = [normalMarkdup.outputBam, tumorMarkdup.outputBam],
+            bamIndexes = [normalMarkdup.outputBamIndex, tumorMarkdup.outputBamIndex],
+            referenceFasta = referenceFasta,
+            referenceFastaFai = referenceFastaFai,
+            referenceFastaDict = referenceFastaDict,
+            hg38 = hg38
     }
 
     call gridss.AnnotateInsertedSequence as viralAnnotation {
         input:
-            inputVcf = gridssRepeatMasker.annotatedVcf,
+            inputVcf = svDepthAnnotation.vcf,
             viralReference = viralReference,
             viralReferenceFai = viralReferenceFai,
             viralReferenceDict = viralReferenceDict,
             viralReferenceBwaIndex = viralReferenceBwaIndex
     }
 
-    call hmftools.Gripss as gripss {
+    call hmftools.Gripss as gripssSomatic { #TODO tumor only mode: filterSgls, if also targeted: hardMinTumorQual 200, minQualBreakPoint 1000, minQualBreakEnd 1000
         input:
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
+            hg38 = hg38,
             knownFusionPairBedpe = knownFusionPairBedpe,
             breakendPon = breakendPon,
             breakpointPon = breakpointPon,
+            repeatMaskFile = repeatMaskerDb,
             referenceName = normalName,
             sampleName = tumorName,
             vcf = viralAnnotation.outputVcf,
@@ -478,18 +528,21 @@ workflow WGSinCancerDiagnostics {
             outputId = "somatic"
     }
 
-    call hmftools.Gripss as gripssGermline {
+    call hmftools.Gripss as gripssGermline { #TODO tumor only: don't run
         input:
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
+            hg38 = hg38,
             knownFusionPairBedpe = knownFusionPairBedpe,
             breakendPon = breakendPon,
             breakpointPon = breakpointPon,
+            repeatMaskFile = repeatMaskerDb,
             sampleName = normalName,
             vcf = viralAnnotation.outputVcf,
             vcfIndex = viralAnnotation.outputVcfIndex,
-            outputId = "germline"
+            outputId = "germline",
+            germline = true
     }
 
     call hmftools.Amber as amber {
@@ -508,7 +561,7 @@ workflow WGSinCancerDiagnostics {
             tumorOnlyMinDepth = if defined(targetRegionsBed) then 80 else noneInt
     }
 
-    call hmftools.Cobalt as cobalt { #TODO tumor only diploid bed
+    call hmftools.Cobalt as cobalt { #TODO tumor only mode: provide tumor only diploid bed
         input:
             referenceName = normalName,
             referenceBam = normalMarkdup.outputBam,
@@ -521,7 +574,7 @@ workflow WGSinCancerDiagnostics {
             pcfGamma = if defined(targetRegionsNormalisationTsv) then 15 else noneInt
     }
 
-    call hmftools.Purple as purple {
+    call hmftools.Purple as purple { #TODO tumoronly no germlineVcf, germlineHotspots, referenceName and germlineDelFreqFile
         input:
             referenceName = normalName,
             tumorName = tumorName,
@@ -530,10 +583,10 @@ workflow WGSinCancerDiagnostics {
             gcProfile = gcProfile,
             somaticVcf = somaticAnnotation.outputVcf,
             germlineVcf = germlineAnnotation.outputVcf,
-            filteredSvVcf = gripss.filteredVcf,
-            filteredSvVcfIndex = gripss.filteredVcfIndex,
-            fullSvVcf = gripss.fullVcf,
-            fullSvVcfIndex = gripss.fullVcfIndex,
+            filteredSvVcf = gripssSomatic.filteredVcf,
+            filteredSvVcfIndex = gripssSomatic.filteredVcfIndex,
+            fullSvVcf = gripssSomatic.fullVcf,
+            fullSvVcfIndex = gripssSomatic.fullVcfIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -547,7 +600,12 @@ workflow WGSinCancerDiagnostics {
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv,
             highlyDiploidPercentage = if shallow then 0.88 else noneFloat,
-            somaticMinPuritySpread = if shallow then 0.1 else noneFloat
+            somaticMinPuritySpread = if shallow then 0.1 else noneFloat,
+            targetRegionsBed = targetRegionsBed,
+            targetRegionsRatios = targetRegionsRatios,
+            targetRegionsMsiIndels = targetRegionsMsiIndels,
+            minDiploidTumorRatioCount = if defined(targetRegionsBed) then 3 else noneInt,
+            minDiploidTumorRatioCountCentromere = if defined(targetRegionsBed) then 3 else noneInt
     }
 
     if (! shallow) {
@@ -666,8 +724,8 @@ workflow WGSinCancerDiagnostics {
                 sampleName = tumorName,
                 snvIndelVcf = somaticAnnotation.outputVcf,
                 snvIndelVcfIndex = somaticAnnotation.outputVcfIndex,
-                svVcf = gripss.filteredVcf,
-                svVcfIndex = gripss.filteredVcfIndex,
+                svVcf = gripssSomatic.filteredVcf,
+                svVcfIndex = gripssSomatic.filteredVcfIndex,
                 hg38 = hg38
         }
 
