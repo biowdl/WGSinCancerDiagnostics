@@ -677,34 +677,40 @@ workflow WGSinCancerDiagnostics {
                 sample = tumorName,
                 refGenomeVersion = if hg38 then "38" else "37",
                 linxOutput = linx.outputs,
-                plotReportable = false #TODO might need to be enabled
+                plotReportable = false
         }
 
         # HLA
 
-        call sambamba.Slice as somaticHLAbam {
+        call samtools.View as tumorHLAbam {
             input:
-                bamFile = tumorMarkdup.outputBam,
-                bamIndex = tumorMarkdup.outputBamIndex,
-                outputPath = "./~{tumorName}_HLA.bam",
-                regions = hlaRegions
+                inFile = tumorMarkdup.outputBam,
+                inFileIndex = tumorMarkdup.outputBamIndex,
+                outputFileName = "~{tumorName}_HLA.bam",
+                targetFile = hlaRegions,
+                uncompressedBamOutput = true,
+                useIndex = true,
+                referenceFasta = referenceFasta
         }
 
-        call sambamba.Slice as germlineHLAbam {
+        call samtools.View as normalHLAbam { #TODO don't run if tumor only
             input:
-                bamFile = normalMarkdup.outputBam,
-                bamIndex = normalMarkdup.outputBamIndex,
-                outputPath = "./~{normalName}_HLA.bam",
-                regions = hlaRegions
+                inFile = normalMarkdup.outputBam,
+                inFileIndex = normalMarkdup.outputBamIndex,
+                outputFileName = "~{normalName}_HLA.bam",
+                targetFile = hlaRegions,
+                uncompressedBamOutput = true,
+                useIndex = true,
+                referenceFasta = referenceFasta
         }
 
         call hmftools.Lilac as lilac {
             input:
                 tumorName = tumorName,
-                referenceBam = germlineHLAbam.slicedBam,
-                referenceBamIndex = germlineHLAbam.slicedBamIndex,
-                tumorBam = somaticHLAbam.slicedBam,
-                tumorBamIndex = somaticHLAbam.slicedBamIndex,
+                referenceBam = normalHLAbam.outputBam,
+                referenceBamIndex = normalHLAbam.outputBamIndex,
+                tumorBam = tumorHLAbam.outputBam,
+                tumorBamIndex = tumorHLAbam.outputBamIndex,
                 refGenomeVersion = if hg38 then "38" else "37",
                 referenceFasta = referenceFasta,
                 referenceFastaFai = referenceFastaFai,
@@ -737,9 +743,9 @@ workflow WGSinCancerDiagnostics {
 
         # post-analysis QC
 
-        call hmftools.HealthChecker as healthChecker {
+        call hmftools.HealthChecker as healthChecker { #TODO tumor only: don't give reference inputs
             input:
-                referenceName = normalName,
+                referenceName = normalName, 
                 referenceFlagstats = normalFlagstat.stats,
                 referenceMetrics = normalCollectMetrics.metrics,
                 tumorName = tumorName,
