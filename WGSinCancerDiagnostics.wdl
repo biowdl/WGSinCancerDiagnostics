@@ -634,7 +634,7 @@ workflow WGSinCancerDiagnostics {
                 virusReportingDbTsv = virusReportingDbTsv
         }
 
-        call hmftools.Linx as linx {
+        call hmftools.Linx as linxSomatic {
             input:
                 sampleName = tumorName,
                 svVcf = purple.purpleSvVcf,
@@ -649,10 +649,11 @@ workflow WGSinCancerDiagnostics {
                 geneDataCsv = geneDataCsv,
                 proteinFeaturesCsv = proteinFeaturesCsv,
                 transExonDataCsv = transExonDataCsv,
-                transSpliceDataCsv = transSpliceDataCsv
+                transSpliceDataCsv = transSpliceDataCsv,
+                outputDir = "./linx_somatic"
         }
 
-        call hmftools.Linx as linxGermline {
+        call hmftools.Linx as linxGermline { #TODO tumor only: don't run
             input:
                 sampleName = normalName,
                 svVcf = gripssGermline.filteredVcf,
@@ -667,16 +668,15 @@ workflow WGSinCancerDiagnostics {
                 germline = true,
                 checkFusions = false,
                 checkDrivers = false,
-                writeVisData = false,
-                germlinePonSvFile = breakpointPon,
-                germlinePonSglFile = breakendPon
+                writeVisData = false
+                outputDir = "./linx_germline"
         }
 
         call hmftools.LinxVisualisations as linxVisualisations {
             input:
                 sample = tumorName,
                 refGenomeVersion = if hg38 then "38" else "37",
-                linxOutput = linx.outputs,
+                linxOutput = linxSomatic.outputs,
                 plotReportable = false
         }
 
@@ -704,9 +704,9 @@ workflow WGSinCancerDiagnostics {
                 referenceFasta = referenceFasta
         }
 
-        call hmftools.Lilac as lilac {
+        call hmftools.Lilac as lilac { #TODO tumor only: referenceBam takes tumorBam, no somaticVariantsFile, geneCopyNumberFile and tumorBam
             input:
-                tumorName = tumorName,
+                sampleName = tumorName,
                 referenceBam = normalHLAbam.outputBam,
                 referenceBamIndex = normalHLAbam.outputBamIndex,
                 tumorBam = tumorHLAbam.outputBam,
