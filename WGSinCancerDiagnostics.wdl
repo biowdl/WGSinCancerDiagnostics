@@ -34,6 +34,7 @@ import "tasks/multiqc.wdl" as multiqc
 import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
+import "tasks/samtools.wdl" as samtools
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -64,7 +65,6 @@ workflow WGSinCancerDiagnostics {
         File gcProfile
         File panelTsv
         File mappabilityBed
-        File mappabilityHdr
         File fragileSiteCsv
         File lineElementCsv
         File knownFusionCsv
@@ -99,10 +99,12 @@ workflow WGSinCancerDiagnostics {
         File cohortMapping
         File cohortPercentiles
         File specificCallSites
-        Array[File]+ gnomadFreqFiles = [] # only used for hg38
+        Array[File] gnomadFreqFiles = [] # only used for hg38
         File hlaRegions
         File germlineDelFreqFile
         File svPrepBlacklistBed
+        File signaturesFile
+        File roseActionabilityDatabaseTsv
 
         #The following need to be in the same directory
         File hlaRefAminoacidSequencesCsv
@@ -571,6 +573,7 @@ workflow WGSinCancerDiagnostics {
             tumorBamIndex = tumorMarkdup.outputBamIndex,
             gcProfile = gcProfile,
             targetRegionsNormalisationTsv = targetRegionsNormalisationTsv,
+            refGenomeFile = referenceFasta,
             pcfGamma = if defined(targetRegionsNormalisationTsv) then 15 else noneInt
     }
 
@@ -668,7 +671,7 @@ workflow WGSinCancerDiagnostics {
                 germline = true,
                 checkFusions = false,
                 checkDrivers = false,
-                writeVisData = false
+                writeVisData = false,
                 outputDir = "./linx_germline"
         }
 
@@ -728,10 +731,10 @@ workflow WGSinCancerDiagnostics {
         call extractSigPredictHRD.ExtractSigPredictHRD as sigAndHRD {
             input:
                 sampleName = tumorName,
-                snvIndelVcf = somaticAnnotation.outputVcf,
-                snvIndelVcfIndex = somaticAnnotation.outputVcfIndex,
-                svVcf = gripssSomatic.filteredVcf,
-                svVcfIndex = gripssSomatic.filteredVcfIndex,
+                snvIndelVcf = purple.purpleSomaticVcf,
+                snvIndelVcfIndex = purple.purpleSomaticVcfIndex,
+                svVcf = purple.purpleSvVcf,
+                svVcfIndex = purple.purpleSvVcfIndex,
                 hg38 = hg38
         }
 
@@ -739,6 +742,14 @@ workflow WGSinCancerDiagnostics {
             input:
                 signaturesMatrix = sigAndHRD.chordSignatures,
                 signaturesReference = cosmicSignatures
+        }
+
+        call hmftools.Sigs as sigs {
+            input:
+                sampleName = tumorName,
+                signaturesFile = signaturesFile,
+                somaticVcfFile = purple.purpleSomaticVcf,
+                somaticVcfIndex = purple.purpleSomaticVcfIndex
         }
 
         # post-analysis QC
@@ -758,15 +769,12 @@ workflow WGSinCancerDiagnostics {
 
         call hmftools.Cuppa as cuppa  {
             input:
-                linxOutput = linx.outputs,
+                linxOutput = linxSomatic.outputs,
                 purpleOutput = purple.outputs,
                 sampleName = tumorName,
                 categories = ["DNA"],
                 referenceData = cuppaReferenceData,
-                purpleSvVcf = purple.purpleSvVcf,
-                purpleSvVcfIndex = purple.purpleSvVcfIndex,
-                purpleSomaticVcf = purple.purpleSomaticVcf,
-                purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex
+                virusInterpreterOutput = virusInterpreter.virusAnnotatedTsv
         }
 
         call hmftools.CuppaChart as makeCuppaChart {
@@ -800,11 +808,14 @@ workflow WGSinCancerDiagnostics {
                 purpleGermlineVariants = purple.purpleGermlineVcf,
                 purpleGermlineVariantsIndex = purple.purpleGermlineVcfIndex,
                 purpleGeneCopyNumber = purple.purpleCnvGeneTsv,
-                linxFusion = linx.linxFusion,
-                linxBreakend = linx.linxBreakend,
-                linxDriversCatalog = linx.driverCatalog,
+                linxFusion = linxSomatic.linxFusion,
+                linxBreakend = linxSomatic.linxBreakend,
+                linxDriversCatalog = linxSomatic.driverCatalog,
                 chordPrediction = sigAndHRD.chordPrediction,
-                annotatedVirus = virusInterpreter.virusAnnotatedTsv
+                annotatedVirus = virusInterpreter.virusAnnotatedTsv,
+                lilacResultCsv = lilac.lilacCsv,
+                lilacQcCsv = lilac.lilacQcCsv,
+                driverGeneTsv = panelTsv
         }
 
         call peachTask.Peach as peach {
@@ -816,7 +827,7 @@ workflow WGSinCancerDiagnostics {
                 panelJson = peachPanelJson
         }
 
-        call hmftools.Orange as orange {
+        call hmftools.Orange as orange { #TODO tumor only: don't run
             input:
                 doidJson = doidsJson,
                 sampleDoids = sampleDoids,
@@ -830,20 +841,26 @@ workflow WGSinCancerDiagnostics {
                 sageSomaticRefSampleBqrPlot = select_first([somaticVariants.referenceSageBqrPng]),
                 sageSomaticTumorSampleBqrPlot = somaticVariants.tumorSageBqrPng,
                 purpleGeneCopyNumberTsv = purple.purpleCnvGeneTsv,
+                purpleGermlineDeletionTsv = purple.purpleGermlineDeletionTsv,
                 purpleGermlineDriverCatalogTsv = purple.driverCatalogGermlineTsv,
                 purpleGermlineVariantVcf = purple.purpleGermlineVcf,
                 purpleGermlineVariantVcfIndex = purple.purpleGermlineVcfIndex,
                 purplePlots = purple.plots,
                 purplePurityTsv = purple.purplePurityTsv,
                 purpleQcFile = purple.purpleQc,
+                purpleSomaticCopyNumberFile = purple.purpleCnvSomaticTsv,
                 purpleSomaticDriverCatalogTsv = purple.driverCatalogSomaticTsv,
                 purpleSomaticVariantVcf = purple.purpleSomaticVcf,
                 purpleSomaticVariantVcfIndex = purple.purpleSomaticVcfIndex,
-                linxFusionTsv = linx.linxFusion,
-                linxBreakendTsv = linx.linxBreakend,
-                linxDriverCatalogTsv = linx.driverCatalog,
-                linxDriverTsv = linx.linxDrivers,
+                lilacQcCsv = lilac.lilacQcCsv,
+                lilacResultCsv = lilac.lilacCsv,
+                linxFusionTsv = linxSomatic.linxFusion,
+                linxBreakendTsv = linxSomatic.linxBreakend,
+                linxDriverCatalogTsv = linxSomatic.driverCatalog,
+                linxDriverTsv = linxSomatic.linxDrivers,
+                linxGermlineDisruptionTsv = select_first([linxGermline.linxGermlineDisruptionTsv]),
                 linxPlots = linxVisualisations.plots,
+                linxStructuralVariantTsv = linxSomatic.linxSvs,
                 cuppaResultCsv = cuppa.cupData,
                 cuppaSummaryPlot = cupGenerateReport.summaryPng,
                 cuppaFeaturePlot = cupGenerateReport.featuresPng,
@@ -852,7 +869,34 @@ workflow WGSinCancerDiagnostics {
                 protectEvidenceTsv = protect.protectTsv,
                 annotatedVirusTsv = virusInterpreter.virusAnnotatedTsv,
                 cohortMappingTsv = cohortMapping,
-                cohortPercentilesTsv = cohortPercentiles
+                cohortPercentilesTsv = cohortPercentiles,
+                hg38 = hg38,
+                driverGenePanel = panelTsv,
+                knownFusionFile = knownFusionCsv
+        }
+
+        call hmftools.Rose as rose { #TODO tumor only: don't run
+            input:
+                actionabilityDatabaseTsv = roseActionabilityDatabaseTsv,
+                hg38 = hg38,
+                driverGeneTsv = panelTsv,
+                purplePurityTsv = purple.purplePurityTsv,
+                purpleQc = purple.purpleQc,
+                purpleGeneCopyNumberTsv = purple.purpleCnvGeneTsv,
+                purpleSomaticDriverCatalogTsv = purple.driverCatalogSomaticTsv,
+                purpleGermlineDriverCatalogTsv = purple.driverCatalogGermlineTsv,
+                purpleSomaticVcf = purple.purpleSomaticVcf,
+                purpleSomaticVcfIndex = purple.purpleSomaticVcfIndex,
+                purpleGermlineVcf = purple.purpleGermlineVcf,
+                purpleGermlineVcfIndex = purple.purpleGermlineVcfIndex,
+                linxFusionTsv = linxSomatic.linxFusion,
+                linxBreakendTsv = linxSomatic.linxBreakend,
+                linxDriverCatalogTsv = linxSomatic.driverCatalog,
+                annotatedVirusTsv = virusInterpreter.virusAnnotatedTsv,
+                chordPredictionTxt = sigAndHRD.chordPrediction,
+                cuppaResultCsv = cuppa.cupData,
+                tumorName = tumorName,
+                referenceName = normalName
         }
     }
 
@@ -930,21 +974,25 @@ workflow WGSinCancerDiagnostics {
         File tumorBamIndex = tumorMarkdup.outputBamIndex
 
         # Analysis results
-        Array[File]? cobaltOutput = cobalt.outputs
-        Array[File]? amberOutput = amber.outputs
+        Array[File] cobaltOutput = cobalt.outputs
+        Array[File] amberOutput = amber.outputs
         Array[File] purpleOutput = purple.outputs
         Array[File] purplePlots = purple.plots
-        Array[File]? linxOutput = linx.outputs
+        Array[File]? linxSomaticOutput = linxSomatic.outputs
+        Array[File]? linxGermlineOutput = linxGermline.outputs
         Array[File]? linxPlots = linxVisualisations.plots
         Array[File]? linxCircos = linxVisualisations.circos
         Array[File]? peachOutput = peach.outputs
         File? protectTsv = protect.protectTsv
         File combinedVCF = sortReportedVcf.outputVcf
         File vafTable = makeVafTable.vafTable
+        File? lilacCsv = lilac.lilacCsv
+        File? lilacQcCsv = lilac.lilacQcCsv
 
         File? HRDprediction = sigAndHRD.chordPrediction
         File? signatures = sigAndHRD.chordSignatures
         File? signatureRDS = signatureWeights.signatureRDS
+        File? sigAllocationTsv = sigs.sigAllocationTsv
 
         File? cupData = cuppa.cupData
         File? cuppaChart = makeCuppaChart.cuppaChart
