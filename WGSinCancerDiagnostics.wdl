@@ -46,7 +46,6 @@ workflow WGSinCancerDiagnostics {
         File referenceFasta
         File referenceFastaFai
         File referenceFastaDict
-        File referenceImg
         File genomeFile
         Boolean hg38
         File somaticHotspots
@@ -622,7 +621,6 @@ workflow WGSinCancerDiagnostics {
                 referenceFasta = referenceFasta,
                 referenceFastaDict = referenceFastaDict,
                 referenceFastaFai = referenceFastaFai,
-                referenceImg = referenceImg,
                 virusbreakendDB = virusbreakendDB
         }
 
@@ -1039,7 +1037,7 @@ task CallSpecificSites {
 
     runtime {
         memory: "8GiB"
-        runtimeMinutes: 15
+        runtime_minutes: 15
         docker: "quay.io/biocontainers/bcftools:1.16--hfe4b78e_1"
     }
 
