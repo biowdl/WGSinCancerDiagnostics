@@ -54,7 +54,7 @@ workflow WGSinCancerDiagnostics {
         File viralReference
         File viralReferenceFai
         File viralReferenceDict
-        Array[File]+ viralReferenceBwaIndex
+        File viralReferenceBwaIndex
         File breakendPon
         File breakpointPon
         File repeatMaskerDb
