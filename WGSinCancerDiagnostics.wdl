@@ -49,7 +49,7 @@ workflow WGSinCancerDiagnostics {
         File genomeFile
         Boolean hg38
         File somaticHotspots
-        File somaticCodingPanel
+        File codingPanel
         File highConfidenceBed
         File viralReference
         File viralReferenceFai
@@ -76,9 +76,8 @@ workflow WGSinCancerDiagnostics {
 
         File gridssBlacklistBed
         File gridssProperties
-        File germlineCoveragePanel
+        File coverageCodingPanel
         File germlineHotspots
-        File germlineCodingPanel
         File clinvarVcf
         File clinvarVcfIndex
         File germlineBlacklistBed
@@ -335,7 +334,7 @@ workflow WGSinCancerDiagnostics {
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
             hotspots = germlineHotspots,
-            panelBed = germlineCodingPanel,
+            panelBed = codingPanel,
             highConfidenceBed = highConfidenceBed,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
@@ -349,7 +348,7 @@ workflow WGSinCancerDiagnostics {
             hotspotMaxGermlineRelRawBaseQual = 100,
             panelMaxGermlineVaf = 100,
             panelMaxGermlineRelRawBaseQual = 100,
-            coverageBed = germlineCoveragePanel,
+            coverageBed = coverageCodingPanel,
             refSampleCount = 0,
             panelOnly = true
     }
@@ -398,8 +397,8 @@ workflow WGSinCancerDiagnostics {
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
             hotspots = somaticHotspots,
-            panelBed = somaticCodingPanel,
-            coverageBed = somaticCodingPanel,
+            panelBed = codingPanel,
+            coverageBed = coverageCodingPanel,
             highConfidenceBed = highConfidenceBed,
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
