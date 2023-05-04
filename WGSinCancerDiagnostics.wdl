@@ -51,10 +51,7 @@ workflow WGSinCancerDiagnostics {
         File somaticHotspots
         File codingPanel
         File highConfidenceBed
-        File viralReference
-        File viralReferenceFai
-        File viralReferenceDict
-        File viralReferenceBwaIndex
+        BwaIndex viralReferenceBwaIndex
         File breakendPon
         File breakpointPon
         File repeatMaskerDb
@@ -505,9 +502,6 @@ workflow WGSinCancerDiagnostics {
     call gridss.AnnotateInsertedSequence as viralAnnotation {
         input:
             inputVcf = svDepthAnnotation.vcf,
-            viralReference = viralReference,
-            viralReferenceFai = viralReferenceFai,
-            viralReferenceDict = viralReferenceDict,
             viralReferenceBwaIndex = viralReferenceBwaIndex
     }
 
