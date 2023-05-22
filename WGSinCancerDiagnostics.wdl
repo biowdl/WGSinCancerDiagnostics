@@ -996,6 +996,8 @@ workflow WGSinCancerDiagnostics {
         File? virusbreakendSummary = virusbreakend.summary
         File? virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
 
+        File? roseTsv = rose.roseTsv
+
         File? orangeJson = orange.orangeJson
         File? orangePdf = orange.orangePdf
     }
