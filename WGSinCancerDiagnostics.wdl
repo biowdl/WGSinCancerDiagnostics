@@ -109,8 +109,8 @@ workflow WGSinCancerDiagnostics {
         Boolean runAdapterClipping = true
         Boolean? runPolyGTrimming # null: default fastp behaviour (ie. enabled for NextSeq/NovaSeq), true: always (-g), false: never (-G)
         Boolean splitFastq = true
-        Boolean filterFastq = true
-        Boolean fastpCorrection = true
+        Boolean filterFastq = false
+        Boolean fastpCorrection = false
         Int totalMappingChunks = 25
         Int mappingThreads = 8
         Boolean shallow = false
