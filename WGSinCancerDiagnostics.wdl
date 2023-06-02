@@ -644,12 +644,12 @@ workflow WGSinCancerDiagnostics {
                 proteinFeaturesCsv = proteinFeaturesCsv,
                 transExonDataCsv = transExonDataCsv,
                 transSpliceDataCsv = transSpliceDataCsv,
-                outputDir = "./linx_somatic"
+                outputDir = "./linx"
         }
 
         call hmftools.Linx as linxGermline { #TODO tumor only: don't run
             input:
-                sampleName = normalName,
+                sampleName = tumorName,
                 svVcf = gripssGermline.filteredVcf,
                 svVcfIndex = gripssGermline.filteredVcfIndex,
                 refGenomeVersion = if hg38 then "38" else "37",
