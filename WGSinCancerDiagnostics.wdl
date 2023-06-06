@@ -183,7 +183,7 @@ workflow WGSinCancerDiagnostics {
                     threads = mappingThreads,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
-                    outputPrefix = "~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
+                    outputPrefix = "./~{normalName}-~{normalReadgroup.library}-~{normalReadgroup.id}"
             }
         }
     }
@@ -191,7 +191,7 @@ workflow WGSinCancerDiagnostics {
     call sambamba.Markdup as normalMarkdup {
         input:
             inputBams = flatten(normalBwaMem.outputBam),
-            outputPath = "~{normalName}.markdup.bam",
+            outputPath = "./~{normalName}.markdup.bam",
             threads = 8,
             memoryMb = 50000
     }
@@ -266,7 +266,7 @@ workflow WGSinCancerDiagnostics {
                     threads = mappingThreads,
                     usePostalt = hg38,
                     useSoftclippingForSupplementary = true,
-                    outputPrefix = "~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
+                    outputPrefix = "./~{tumorName}-~{tumorReadgroup.library}-~{tumorReadgroup.id}"
             }
         }
     }
@@ -274,7 +274,7 @@ workflow WGSinCancerDiagnostics {
     call sambamba.Markdup as tumorMarkdup {
         input:
             inputBams = flatten(tumorBwaMem.outputBam),
-            outputPath = "~{tumorName}.markdup.bam",
+            outputPath = "./~{tumorName}.markdup.bam",
             threads = 8,
             memoryMb = 50000
     }
@@ -338,7 +338,7 @@ workflow WGSinCancerDiagnostics {
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv,
             hg38 = hg38,
-            outputPath = "./germlineSage.vcf.gz",
+            outputPath = "./sage_germline/~{tumorName}.sage.germline.vcf.gz",
             hotspotMinTumorQual = 50,
             panelMinTumorQual = 75,
             hotspotMaxGermlineVaf = 100,
@@ -355,7 +355,7 @@ workflow WGSinCancerDiagnostics {
             vcf = germlineVariants.outputVcf,
             vcfIndex = germlineVariants.outputVcfIndex,
             include = "'FILTER=\"PASS\"'",
-            outputPath = "./germlineSage.passFilter.vcf.gz"
+            outputPath = "./sage_germline/~{tumorName}.sage.germline.filtered.vcf.gz"
     }
 
     call hmftools.Pave as germlineAnnotation { #TODO don't run if tumor only
@@ -377,7 +377,8 @@ workflow WGSinCancerDiagnostics {
             clinvarVcfIndex = clinvarVcfIndex,
             blacklistVcf = germlineBlacklistVcf,
             blacklistBed = germlineBlacklistBed,
-            blacklistVcfIndex = germlineBlacklistVcfIndex
+            blacklistVcfIndex = germlineBlacklistVcfIndex,
+            outputDir = "./pave_germline"
     }
 
     # somatic calling
@@ -402,6 +403,7 @@ workflow WGSinCancerDiagnostics {
             transExonDataCsv = transExonDataCsv,
             transSpliceDataCsv = transSpliceDataCsv,
             hg38 = hg38,
+            outputPath = "./sage_somatic/~{tumorName}.sage.somatic.vcf.gz",
             hotspotMinTumorQual = if defined(targetRegionsBed) then 150 else if shallow then 40 else noneInt,
             hotspotMinTumorVaf = if defined(targetRegionsBed) then 0.01 else noneFloat,
             panelMinTumorQual = if defined(targetRegionsBed) then 250 else noneInt,
@@ -414,7 +416,7 @@ workflow WGSinCancerDiagnostics {
             vcf = somaticVariants.outputVcf,
             vcfIndex = somaticVariants.outputVcfIndex,
             include = "'FILTER=\"PASS\"'",
-            outputPath = "./sage.passFilter.vcf.gz"
+            outputPath = "./sage_somatic/~{tumorName}.sage.somatic.filtered.vcf.gz"
     }
 
     call hmftools.Pave as somaticAnnotation { # if tumor only: writePassOnly
@@ -437,7 +439,8 @@ workflow WGSinCancerDiagnostics {
             geneDataCsv = geneDataCsv,
             proteinFeaturesCsv = proteinFeaturesCsv,
             transExonDataCsv = transExonDataCsv,
-            transSpliceDataCsv = transSpliceDataCsv
+            transSpliceDataCsv = transSpliceDataCsv,
+            outputDir = "./pave_somatic"
     }
 
     # SVs and CNVs
@@ -483,7 +486,8 @@ workflow WGSinCancerDiagnostics {
             normalLabel = normalName,
             reference = bwaIndex,
             blacklistBed = gridssBlacklistBed,
-            gridssProperties = gridssProperties
+            gridssProperties = gridssProperties,
+            outputPath = "./gridss/~{tumorName}.gridss.vcf.gz"
     }
 
     call hmftools.SvPrepDepthAnnotator as svDepthAnnotation { #TODO tumor only: don't provide normal
@@ -496,7 +500,8 @@ workflow WGSinCancerDiagnostics {
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
-            hg38 = hg38
+            hg38 = hg38,
+            outputVcf = "./gridss/~{tumorName}.gridss.unfiltered.vcf.gz"
     }
 
     call gridss.AnnotateInsertedSequence as viralAnnotation {
@@ -519,7 +524,8 @@ workflow WGSinCancerDiagnostics {
             sampleName = tumorName,
             vcf = viralAnnotation.outputVcf,
             vcfIndex = viralAnnotation.outputVcfIndex,
-            outputId = "somatic"
+            outputId = "somatic",
+            outputDir = "./gripss_somatic"
     }
 
     call hmftools.Gripss as gripssGermline { #TODO tumor only: don't run
@@ -536,6 +542,7 @@ workflow WGSinCancerDiagnostics {
             vcf = viralAnnotation.outputVcf,
             vcfIndex = viralAnnotation.outputVcfIndex,
             outputId = "germline",
+            outputDir = "./gripss_germline",
             germline = true
     }
 
@@ -614,7 +621,8 @@ workflow WGSinCancerDiagnostics {
                 referenceFasta = referenceFasta,
                 referenceFastaDict = referenceFastaDict,
                 referenceFastaFai = referenceFastaFai,
-                virusbreakendDB = virusbreakendDB
+                virusbreakendDB = virusbreakendDB,
+                outputPath = "./virusbreakend/~{tumorName}.virusbreakend.vcf"
         }
 
         call hmftools.VirusInterpreter as virusInterpreter {
@@ -625,7 +633,8 @@ workflow WGSinCancerDiagnostics {
                 tumorSampleWgsMetricsFile = tumorCollectMetrics.metrics,
                 virusBreakendTsv = virusbreakend.summary,
                 taxonomyDbTsv = taxonomyDbTsv,
-                virusReportingDbTsv = virusReportingDbTsv
+                virusReportingDbTsv = virusReportingDbTsv,
+                outputDir = "./virusintrprtr"
         }
 
         call hmftools.Linx as linxSomatic {
@@ -914,7 +923,7 @@ workflow WGSinCancerDiagnostics {
     call bcftools.Sort as sortReportedVcf {
         input:
             inputFile = makeReportedVCF.vcf,
-            outputPath = "~{tumorName}.reportedVAR.sorted.vcf"
+            outputPath = "./~{tumorName}.reportedVAR.sorted.vcf"
     }
 
     # VAF table
@@ -964,27 +973,60 @@ workflow WGSinCancerDiagnostics {
         File tumorBam = tumorMarkdup.outputBam
         File tumorBamIndex = tumorMarkdup.outputBamIndex
 
-        # Analysis results
-        Array[File] cobaltOutput = cobalt.outputs
-        Array[File] amberOutput = amber.outputs
-        Array[File] purpleOutput = purple.outputs
-        Array[File] purplePlots = purple.plots
-        Array[File]? linxSomaticOutput = linxSomatic.outputs
-        Array[File]? linxGermlineOutput = linxGermline.outputs
-        Array[File]? linxPlots = linxVisualisations.plots
-        Array[File]? linxCircos = linxVisualisations.circos
-        Array[File]? peachOutput = peach.outputs
-        File? protectTsv = protect.protectTsv
-        File combinedVCF = sortReportedVcf.outputVcf
-        File vafTable = makeVafTable.vafTable
-        File? lilacCsv = lilac.lilacCsv
-        File? lilacQcCsv = lilac.lilacQcCsv
+        # SNVs/indels
+        Array[File] sageGermlineOutputs = germlineVariants.outputs
+        File sageGermlineFilteredVcf = germlinePassFilter.outputVcf
+        File sageGermlineFilteredVcfIndex = germlinePassFilter.outputVcfIndex
+        Array[File] sageSomaticOutputs = somaticVariants.outputs
+        File sageSomaticFilteredVcf = somaticPassFilter.outputVcf
+        File sageSomaticFilteredVcfIndex = somaticPassFilter.outputVcfIndex
+        File paveGermlineVcf = germlineAnnotation.outputVcf
+        File paveGermlineVcfIndex = germlineAnnotation.outputVcfIndex
+        File paveSomaticVcf = somaticAnnotation.outputVcf
+        File paveSomaticVcfIndex = somaticAnnotation.outputVcfIndex
 
+        # Signatures
         File? HRDprediction = sigAndHRD.chordPrediction
         File? signatures = sigAndHRD.chordSignatures
         File? signatureRDS = signatureWeights.signatureRDS
         File? sigAllocationTsv = sigs.sigAllocationTsv
+        File? sigSnvCountsCsv = sigs.sigSnvCountsCsv
 
+        # SV
+        File gridssVcf = svDepthAnnotation.vcf
+        File gridssVcfIndex = svDepthAnnotation.vcfIndex
+        File gripssSomaticVcf = gripssSomatic.fullVcf
+        File gripssSomaticVcfIndex = gripssSomatic.fullVcfIndex
+        File gripssSomaticFilteredVcf = gripssSomatic.filteredVcf
+        File gripssSomaticFilteredVcfIndex = gripssSomatic.filteredVcfIndex
+        File gripssGermlineVcf = gripssGermline.fullVcf
+        File gripssGermlineVcfIndex = gripssGermline.fullVcfIndex
+        File gripssGermlineFilteredVcf = gripssGermline.filteredVcf
+        File gripssGermlineFilteredVcfIndex = gripssGermline.filteredVcfIndex
+
+        Array[File]? linxSomaticOutput = linxSomatic.outputs
+        Array[File]? linxGermlineOutput = linxGermline.outputs
+        Array[File]? linxPlots = linxVisualisations.plots
+        Array[File]? linxCircos = linxVisualisations.circos
+
+        # Virus
+        File? virusbreakendVcf = virusbreakend.vcf
+        File? virusbreakendSummary = virusbreakend.summary
+        File? virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
+
+        # CNV
+        Array[File] cobaltOutput = cobalt.outputs
+        Array[File] amberOutput = amber.outputs
+        Array[File] purpleOutput = purple.outputs
+        Array[File] purplePlots = purple.plots
+        Array[File] purpleCircos = purple.circos
+
+        # HLA
+        File? lilacCsv = lilac.lilacCsv
+        File? lilacQcCsv = lilac.lilacQcCsv
+        File? lilacCandidatesCoverageCsv = lilac.candidatesCoverageCsv
+
+        # CUP
         File? cupData = cuppa.cupData
         File? cuppaChart = makeCuppaChart.cuppaChart
         File? cuppaConclusion = makeCuppaChart.cuppaConclusion
@@ -992,12 +1034,12 @@ workflow WGSinCancerDiagnostics {
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File? cupReportPdf = cupGenerateReport.reportPdf
 
-        File? virusbreakendVcf = virusbreakend.vcf
-        File? virusbreakendSummary = virusbreakend.summary
-        File? virusAnnotatedTsv = virusInterpreter.virusAnnotatedTsv
-
+        # Reporting
+        File combinedVCF = sortReportedVcf.outputVcf
+        File vafTable = makeVafTable.vafTable
         File? roseTsv = rose.roseTsv
-
+        Array[File]? peachOutput = peach.outputs
+        File? protectTsv = protect.protectTsv
         File? orangeJson = orange.orangeJson
         File? orangePdf = orange.orangePdf
     }
