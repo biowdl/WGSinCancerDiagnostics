@@ -7,6 +7,44 @@ Newest changes should be on top.
 This document is user facing. Please word the changes in such a way
 that users understand how the changes affect the new version.
 -->
+
+version 4.0.0
+---------------------------
++ Workflow was adjusted to conform with Hartwig Medical Foundation's
+  pipeline5 version 5.31.
+  + Updated tool were versions:
+    + TODO
+  + TODO
++ Adjusted structure of output directory.
++ Added support for target regions (experimental).
++ Many inputs were added, adjusted or removed:
+  + `referenceImg`: removed
+  + `somaticCodingPanel`: replaced by `codingPanel`
+  + `viralReference`, `viralReferenceFai`, `viralReferenceDict` and
+    `viralReferenceImg`: replaced by `viralReferenceBwaIndex`
+  + `PON` and `PONindex`: removed
+  + `repeatMaskerDb`: added
+  + `ponFile`: added
+  + `ponArtefactFile`: added
+  + `mappabilityHdr`: removed
+  + `germlineCoveragePanel`: replaced by `coverageCodingPanel`
+  + `germlineCodingPanel`: removed
+  + `gnomadFreqFiles`: added (defaults to an empty list)
+  + `hlaRegions`: added
+  + `germlineDelFreqFile`: added
+  + `svPrepBlacklistBed`: added
+  + `signaturesFile`: added
+  + `roseActionabilityDatabaseTsv`: added
+  + `filterFastq` is now set to `false` by default.
+  + `fastpCorrection` is now set to `false` by default.
+  + `targetRegionsBed`: added (optional)
+  + `targetRegionsNormalisationTsv`: added (optional)
+  + `targetRegionsRatios`: added (optional)
+  + `targetRegionsMsiIndels`: added (optional)
++ Fixed an issue where fastp's metrics for the tumor fastq files
+  were not being included in the multiQC report.
+
+
 version 3.2.0
 ---------------------------
 + Added the `shallow` input to enable shallow mode. Defaults to false.
