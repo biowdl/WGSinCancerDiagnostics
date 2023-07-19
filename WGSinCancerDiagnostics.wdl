@@ -115,6 +115,11 @@ workflow WGSinCancerDiagnostics {
         Int mappingThreads = 8
         Boolean shallow = false
 
+        String? cancerType
+        Array[File]+ neoBindingFiles
+        String neoBindingFileId
+        File cancerTpmMedians
+
         File? targetRegionsBed
         File? targetRegionsNormalisationTsv
         File? targetRegionsRatios
@@ -649,6 +654,7 @@ workflow WGSinCancerDiagnostics {
                 knownFusionCsv = knownFusionCsv,
                 driverGenePanel = panelTsv,
                 writeAllVisFusions = true,
+                writeNeoEpitopes = true,
                 geneDataCsv = geneDataCsv,
                 proteinFeaturesCsv = proteinFeaturesCsv,
                 transExonDataCsv = transExonDataCsv,
@@ -787,6 +793,45 @@ workflow WGSinCancerDiagnostics {
             input:
                 sampleName = tumorName,
                 cupData = cuppa.cupData
+        }
+
+        # Neoepitopes
+        
+        call hmftools.Neo as neo {
+            input:
+                sampleId = tumorName,
+                somaticVcf = purple.purpleSomaticVcf,
+                somaticVcfIndex = purple.purpleSomaticVcfIndex,
+                linxOutput = linxSomatic.outputs,
+                refGenomeVersion = if hg38 then "38"  else "37",
+                referenceFasta = referenceFasta,
+                referenceFastaFai = referenceFastaFai,
+                referenceFastaDict = referenceFastaDict,
+                geneDataCsv = geneDataCsv,
+                proteinFeaturesCsv = proteinFeaturesCsv,
+                transExonDataCsv = transExonDataCsv,
+                transSpliceDataCsv = transSpliceDataCsv
+        }
+
+        call hmftools.NeoScorer as neoScorer {
+            input:
+                sampleId = tumorName,
+                refGenomeVersion = if hg38 then "38"  else "37",
+                referenceFasta = referenceFasta,
+                referenceFastaFai = referenceFastaFai,
+                referenceFastaDict = referenceFastaDict,
+                neoBindingFiles = neoBindingFiles,
+                neoBindingFileId = neoBindingFileId,
+                cancerTpmMedians = cancerTpmMedians,
+                neoData = neo.neoData,
+                lilacOutput = lilac.outputs,
+                purpleOutput = purple.outputs,
+                geneDataCsv = geneDataCsv,
+                proteinFeaturesCsv = proteinFeaturesCsv,
+                transExonDataCsv = transExonDataCsv,
+                transSpliceDataCsv = transSpliceDataCsv,
+                cancerType = cancerType
+                #TODO RNA
         }
 
         # Reporting
@@ -1022,9 +1067,7 @@ workflow WGSinCancerDiagnostics {
         Array[File] purpleCircos = purple.circos
 
         # HLA
-        File? lilacCsv = lilac.lilacCsv
-        File? lilacQcCsv = lilac.lilacQcCsv
-        File? lilacCandidatesCoverageCsv = lilac.candidatesCoverageCsv
+        Array[File]? lilacOutput = lilac.outputs
 
         # CUP
         File? cupData = cuppa.cupData
@@ -1033,6 +1076,11 @@ workflow WGSinCancerDiagnostics {
         File? cupSummaryPng = cupGenerateReport.summaryPng
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File? cupReportPdf = cupGenerateReport.reportPdf
+
+        # Neoepitopes
+        File? neoData = neo.neoData
+        File? neoepitopes = neoScorer.neoepitopes
+        File? neoPeptideScores = neoScorer.peptideScores
 
         # Reporting
         File combinedVCF = sortReportedVcf.outputVcf
