@@ -816,10 +816,6 @@ workflow WGSinCancerDiagnostics {
         call hmftools.NeoScorer as neoScorer {
             input:
                 sampleId = tumorName,
-                refGenomeVersion = if hg38 then "38"  else "37",
-                referenceFasta = referenceFasta,
-                referenceFastaFai = referenceFastaFai,
-                referenceFastaDict = referenceFastaDict,
                 neoBindingFiles = neoBindingFiles,
                 neoBindingFileId = neoBindingFileId,
                 cancerTpmMedians = cancerTpmMedians,
