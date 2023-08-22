@@ -35,6 +35,7 @@ import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
 import "tasks/samtools.wdl" as samtools
+import "tasks/star.wdl" as star
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -115,6 +116,11 @@ workflow WGSinCancerDiagnostics {
         Int mappingThreads = 8
         Boolean shallow = false
 
+        Array[Readgroup]+? tumorRnaReadgroups
+        Array[File]+? starIndex
+        File isofoxExpCountsFile
+        File isofoxExpGcRatiosFile
+
         String? cancerType
         Array[File]+ neoBindingFiles
         String neoBindingFileId
@@ -127,6 +133,7 @@ workflow WGSinCancerDiagnostics {
 
         Int? noneInt
         Float? noneFloat
+        String? noneString
     }
 
     String versionString = "4.0.0-dev"
@@ -319,6 +326,51 @@ workflow WGSinCancerDiagnostics {
             b = tumorMarkdup.outputBam,
             bIndex = tumorMarkdup.outputBamIndex,
             outputPath = "./~{tumorName}.driverGeneCoverage.tsv"
+    }
+
+    # Tumor RNA
+    if defined(tumorRnaReadgroups) {
+        scatter (rnaReadgroup in tumorRnaReadgroups) {
+            call star.Star as rnaMapping {
+                input:
+                    inputR1 = [rnaReadgroup.read1],
+                    inputR2 = [rnaReadgroup.read2],
+                    indexFiles = starIndex,
+                    outFileNamePrefix = "./~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}.rna"
+                    outSAMtype = "BAM Unsorted",
+                    readFilesCommand = "zcat",
+                    outBAMcompression = 0,
+                    outFilterScoreMinOverLread = 0.33,
+                    outFilterMatchNmin = 35,
+                    outFilterMatchNminOverLread = 0.33,
+                    twopassMode = noneString,
+                    outSAMattrRGline = "@RG\\tID:~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}\\tLB:~{rnaReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina"
+                    outSAMunmapped = "Within"
+                    outSAMattributes = "All"
+                    outFilterMultimapNmax = 10,
+                    outFilterMismatchNmax = 3,
+                    limitOutSJcollapsed = 3000000,
+                    chimSegmentMin = 10,
+                    chimOutType = "WithinBAM SoftClip",
+                    chimJunctionOverhangMin = 10,
+                    chimSegmentReadGapMax = 3,
+                    chimScoreMin = 1,
+                    chimScoreDropMax = 30,
+                    chimScoreJunctionNonGTAG = 0,
+                    chimScoreSeparation = 1,
+                    alignSplicedMateMapLminOverLmate = 0.33,
+                    alignSplicedMateMapLmin = 35,
+                    alignSJstitchMismatchNmax = "5 -1 5 5"
+            }
+        }
+
+        call sambamba.Markdup as rnaMarkdup {
+            input:
+                inputBams = tumorBwaMem.bamFile,
+                outputPath = "./~{tumorName}.rna.markdup.bam",
+                threads = 8,
+                memoryMb = 50000
+        }
     }
 
     # germline calling
@@ -813,6 +865,28 @@ workflow WGSinCancerDiagnostics {
                 transSpliceDataCsv = transSpliceDataCsv
         }
 
+        if (defined(rnaMarkdup.outputBam)) {
+            call hmftools.Isofox as isofox {
+                input:
+                    sampleName = tumorName,
+                    neoepitopeFile = neo.neoData,
+                    bamFile = rnaMarkdup.outputBam,
+                    bamIndex = rnaMarkdup.outputBamIndex,
+                    referenceFasta = referenceFasta,
+                    referenceFastaFai = referenceFastaDict,
+                    referenceFastaDict = referenceFastaDict,
+                    refGenomeVersion = if hg38 then "38" else "37",
+                    expCountsFile = isofoxExpCountsFile,
+                    expGcRatiosFile = isofoxExpGcRatiosFile,
+                    geneDataCsv = geneDataCsv,
+                    proteinFeaturesCsv = proteinFeaturesCsv,
+                    transExonDataCsv = transExonDataCsv,
+                    transSpliceDataCsv = transSpliceDataCsv
+            }
+
+            #TODO sage append
+        }
+
         call hmftools.NeoScorer as neoScorer {
             input:
                 sampleId = tumorName,
@@ -1072,6 +1146,11 @@ workflow WGSinCancerDiagnostics {
         File? cupSummaryPng = cupGenerateReport.summaryPng
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File? cupReportPdf = cupGenerateReport.reportPdf
+
+        # RNA
+        File? rnaBam = rnaMarkdup.outputBam
+        File? rnaBamIndex = rnaMarkdup.outputBamIndex
+        Array[File]? isofoxOutput = isofox.output
 
         # Neoepitopes
         File? neoData = neo.neoData
