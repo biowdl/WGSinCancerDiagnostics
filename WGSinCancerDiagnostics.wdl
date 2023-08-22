@@ -884,7 +884,17 @@ workflow WGSinCancerDiagnostics {
                     transSpliceDataCsv = transSpliceDataCsv
             }
 
-            #TODO sage append
+            call hmftools.SageAppend as rnaVariants {
+                input:
+                    sampleName = "~{tumorName}_rna",
+                    bamFile = select_first([rnaMarkdup.outputBam]),
+                    bamIndex = select_first([rnaMarkdup.outputBamIndex]),
+                    referenceFasta = referenceFasta,
+                    referenceFastaFai = referenceFastaDict,
+                    referenceFastaDict = referenceFastaDict,
+                    sageVcf = purple.purpleSomaticVcf,
+                    outPath = "./~{tumorName}.rna.vcf.gz",
+            }
         }
 
         call hmftools.NeoScorer as neoScorer {
@@ -900,8 +910,10 @@ workflow WGSinCancerDiagnostics {
                 proteinFeaturesCsv = proteinFeaturesCsv,
                 transExonDataCsv = transExonDataCsv,
                 transSpliceDataCsv = transSpliceDataCsv,
-                cancerType = cancerType
-                #TODO RNA
+                cancerType = cancerType,
+                isofoxOutput = isofox.outputs,
+                rnaSomaticVcf = rnaVariants.vcf,
+                rnaSomaticVcfIndex = rnaVariants.index
         }
 
         # Reporting
@@ -1151,6 +1163,8 @@ workflow WGSinCancerDiagnostics {
         File? rnaBam = rnaMarkdup.outputBam
         File? rnaBamIndex = rnaMarkdup.outputBamIndex
         Array[File]? isofoxOutput = isofox.outputs
+        File? rnaVariantsVcf = rnaVariants.vcf
+        File? rnaVariantsVcfIndex = rnaVariants.index
 
         # Neoepitopes
         File? neoData = neo.neoData
