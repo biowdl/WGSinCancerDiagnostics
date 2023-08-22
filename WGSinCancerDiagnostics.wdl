@@ -118,8 +118,8 @@ workflow WGSinCancerDiagnostics {
 
         Array[Readgroup]+? tumorRnaReadgroups
         Array[File]+? starIndex
-        File isofoxExpCountsFile
-        File isofoxExpGcRatiosFile
+        File? isofoxExpCountsFile
+        File? isofoxExpGcRatiosFile
 
         String? cancerType
         Array[File]+ neoBindingFiles
@@ -329,14 +329,14 @@ workflow WGSinCancerDiagnostics {
     }
 
     # Tumor RNA
-    if defined(tumorRnaReadgroups) {
-        scatter (rnaReadgroup in tumorRnaReadgroups) {
+    if (defined(tumorRnaReadgroups)) {
+        scatter (rnaReadgroup in select_first([tumorRnaReadgroups])) {
             call star.Star as rnaMapping {
                 input:
                     inputR1 = [rnaReadgroup.read1],
                     inputR2 = [rnaReadgroup.read2],
-                    indexFiles = starIndex,
-                    outFileNamePrefix = "./~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}.rna"
+                    indexFiles = select_first([starIndex]),
+                    outFileNamePrefix = "./~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}.rna",
                     outSAMtype = "BAM Unsorted",
                     readFilesCommand = "zcat",
                     outBAMcompression = 0,
@@ -344,9 +344,9 @@ workflow WGSinCancerDiagnostics {
                     outFilterMatchNmin = 35,
                     outFilterMatchNminOverLread = 0.33,
                     twopassMode = noneString,
-                    outSAMattrRGline = "@RG\\tID:~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}\\tLB:~{rnaReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina"
-                    outSAMunmapped = "Within"
-                    outSAMattributes = "All"
+                    outSAMattrRGline = ["@RG\\tID:~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}\\tLB:~{rnaReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina"],
+                    outSAMunmapped = "Within",
+                    outSAMattributes = "All",
                     outFilterMultimapNmax = 10,
                     outFilterMismatchNmax = 3,
                     limitOutSJcollapsed = 3000000,
@@ -366,7 +366,7 @@ workflow WGSinCancerDiagnostics {
 
         call sambamba.Markdup as rnaMarkdup {
             input:
-                inputBams = tumorBwaMem.bamFile,
+                inputBams = rnaMapping.bamFile,
                 outputPath = "./~{tumorName}.rna.markdup.bam",
                 threads = 8,
                 memoryMb = 50000
@@ -870,14 +870,14 @@ workflow WGSinCancerDiagnostics {
                 input:
                     sampleName = tumorName,
                     neoepitopeFile = neo.neoData,
-                    bamFile = rnaMarkdup.outputBam,
-                    bamIndex = rnaMarkdup.outputBamIndex,
+                    bamFile = select_first([rnaMarkdup.outputBam]),
+                    bamIndex = select_first([rnaMarkdup.outputBamIndex]),
                     referenceFasta = referenceFasta,
                     referenceFastaFai = referenceFastaDict,
                     referenceFastaDict = referenceFastaDict,
                     refGenomeVersion = if hg38 then "38" else "37",
-                    expCountsFile = isofoxExpCountsFile,
-                    expGcRatiosFile = isofoxExpGcRatiosFile,
+                    expCountsFile = select_first([isofoxExpCountsFile]),
+                    expGcRatiosFile = select_first([isofoxExpGcRatiosFile]),
                     geneDataCsv = geneDataCsv,
                     proteinFeaturesCsv = proteinFeaturesCsv,
                     transExonDataCsv = transExonDataCsv,
@@ -1150,7 +1150,7 @@ workflow WGSinCancerDiagnostics {
         # RNA
         File? rnaBam = rnaMarkdup.outputBam
         File? rnaBamIndex = rnaMarkdup.outputBamIndex
-        Array[File]? isofoxOutput = isofox.output
+        Array[File]? isofoxOutput = isofox.outputs
 
         # Neoepitopes
         File? neoData = neo.neoData
