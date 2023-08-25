@@ -362,7 +362,7 @@ workflow WGSinCancerDiagnostics {
                     alignSplicedMateMapLmin = 35,
                     alignSJstitchMismatchNmax = "5 -1 5 5",
                     memory = "50GiB",
-                    threads = 8
+                    runThreadN = 8
             }
         }
 
