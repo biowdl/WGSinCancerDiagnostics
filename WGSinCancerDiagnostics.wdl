@@ -360,7 +360,9 @@ workflow WGSinCancerDiagnostics {
                     chimScoreSeparation = 1,
                     alignSplicedMateMapLminOverLmate = 0.33,
                     alignSplicedMateMapLmin = 35,
-                    alignSJstitchMismatchNmax = "5 -1 5 5"
+                    alignSJstitchMismatchNmax = "5 -1 5 5",
+                    memory = "50GiB",
+                    threads = 8
             }
         }
 
