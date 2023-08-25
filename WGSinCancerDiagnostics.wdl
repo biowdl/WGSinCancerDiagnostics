@@ -344,7 +344,7 @@ workflow WGSinCancerDiagnostics {
                     outFilterMatchNmin = 35,
                     outFilterMatchNminOverLread = 0.33,
                     twopassMode = noneString,
-                    outSAMattrRGline = ["@RG\\tID:~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}\\tLB:~{rnaReadgroup.library}\\tSM:~{tumorName}\\tPL:illumina"],
+                    outSAMattrRGline = ['"ID:~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}" "LB:~{rnaReadgroup.library}" "SM:~{tumorName}" "PL:illumina"'],
                     outSAMunmapped = "Within",
                     outSAMattributes = "All",
                     outFilterMultimapNmax = 10,
