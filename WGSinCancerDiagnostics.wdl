@@ -336,7 +336,7 @@ workflow WGSinCancerDiagnostics {
                     inputR1 = [rnaReadgroup.read1],
                     inputR2 = [rnaReadgroup.read2],
                     indexFiles = select_first([starIndex]),
-                    outFileNamePrefix = "./~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}.rna",
+                    outFileNamePrefix = "./~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}.rna.",
                     outSAMtype = "BAM Unsorted",
                     readFilesCommand = "zcat",
                     outBAMcompression = 0,
