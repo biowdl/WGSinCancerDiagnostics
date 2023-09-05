@@ -896,7 +896,7 @@ workflow WGSinCancerDiagnostics {
                     sampleName = "~{tumorName}_rna",
                     bamFile = select_first([rnaMarkdup.outputBam]),
                     referenceFasta = referenceFasta,
-                    referenceFastaFai = referenceFastaDict,
+                    referenceFastaFai = referenceFastaFai,
                     referenceFastaDict = referenceFastaDict,
                     sageVcf = purple.purpleSomaticVcf,
                     outPath = "./~{tumorName}.rna.vcf.gz",
