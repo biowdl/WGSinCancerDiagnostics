@@ -35,6 +35,7 @@ import "tasks/peach.wdl" as peachTask
 import "tasks/picard.wdl" as picard
 import "tasks/sambamba.wdl" as sambamba
 import "tasks/samtools.wdl" as samtools
+import "tasks/star.wdl" as star
 
 workflow WGSinCancerDiagnostics {
     input {
@@ -115,6 +116,11 @@ workflow WGSinCancerDiagnostics {
         Int mappingThreads = 8
         Boolean shallow = false
 
+        Array[Readgroup]+? tumorRnaReadgroups
+        Array[File]+? starIndex
+        File? isofoxExpCountsFile
+        File? isofoxExpGcRatiosFile
+
         String? cancerType
         Array[File]+ neoBindingFiles
         String neoBindingFileId
@@ -127,6 +133,7 @@ workflow WGSinCancerDiagnostics {
 
         Int? noneInt
         Float? noneFloat
+        String? noneString
     }
 
     String versionString = "4.0.0-dev"
@@ -201,10 +208,13 @@ workflow WGSinCancerDiagnostics {
             memoryMb = 50000
     }
 
+    File normalMarkdupBam = normalMarkdup.outputBam
+    File normalMarkdupBamIndex = select_first([normalMarkdup.outputBamIndex])
+
     call picard.CollectWgsMetrics as normalCollectMetrics {
         input:
-            inputBam = normalMarkdup.outputBam,
-            inputBamIndex = normalMarkdup.outputBamIndex,
+            inputBam = normalMarkdupBam,
+            inputBamIndex = normalMarkdupBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaDict = referenceFastaDict,
             referenceFastaFai = referenceFastaFai,
@@ -217,15 +227,15 @@ workflow WGSinCancerDiagnostics {
 
     call picard.CollectInsertSizeMetrics as normalCollectInsertSizeMetrics {
         input:
-            inputBam = normalMarkdup.outputBam,
-            inputBamIndex = normalMarkdup.outputBamIndex,
+            inputBam = normalMarkdupBam,
+            inputBamIndex = normalMarkdupBamIndex,
             basename = "./~{normalName}.insertSize_metrics"
     }
 
     call sambamba.Flagstat as normalFlagstat {
         input:
-            inputBam = normalMarkdup.outputBam,
-            inputBamIndex = normalMarkdup.outputBamIndex,
+            inputBam = normalMarkdupBam,
+            inputBamIndex = normalMarkdupBamIndex,
             outputPath = "./~{normalName}.flagstat.txt"
     }
 
@@ -233,8 +243,8 @@ workflow WGSinCancerDiagnostics {
         input:
             genomeFile = genomeFile,
             a = driverGeneBed,
-            b = normalMarkdup.outputBam,
-            bIndex = normalMarkdup.outputBamIndex,
+            b = normalMarkdupBam,
+            bIndex = normalMarkdupBamIndex,
             outputPath = "./~{normalName}.driverGeneCoverage.tsv"
     }
 
@@ -284,10 +294,13 @@ workflow WGSinCancerDiagnostics {
             memoryMb = 50000
     }
 
+    File tumorMarkdupBam = tumorMarkdup.outputBam
+    File tumorMarkdupBamIndex = select_first([tumorMarkdup.outputBamIndex])
+
     call picard.CollectWgsMetrics as tumorCollectMetrics {
         input:
-            inputBam = tumorMarkdup.outputBam,
-            inputBamIndex = tumorMarkdup.outputBamIndex,
+            inputBam = tumorMarkdupBam,
+            inputBamIndex = tumorMarkdupBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaDict = referenceFastaDict,
             referenceFastaFai = referenceFastaFai,
@@ -300,15 +313,15 @@ workflow WGSinCancerDiagnostics {
 
     call picard.CollectInsertSizeMetrics as tumorCollectInsertSizeMetrics {
         input:
-            inputBam = tumorMarkdup.outputBam,
-            inputBamIndex = tumorMarkdup.outputBamIndex,
+            inputBam = tumorMarkdupBam,
+            inputBamIndex = tumorMarkdupBamIndex,
             basename = "./~{tumorName}.insertSize_metrics"
     }
 
     call sambamba.Flagstat as tumorFlagstat {
         input:
-            inputBam = tumorMarkdup.outputBam,
-            inputBamIndex = tumorMarkdup.outputBamIndex,
+            inputBam = tumorMarkdupBam,
+            inputBamIndex = tumorMarkdupBamIndex,
             outputPath = "./~{tumorName}.flagstat.txt"
     }
 
@@ -316,9 +329,56 @@ workflow WGSinCancerDiagnostics {
         input:
             genomeFile = genomeFile,
             a = driverGeneBed,
-            b = tumorMarkdup.outputBam,
-            bIndex = tumorMarkdup.outputBamIndex,
+            b = tumorMarkdupBam,
+            bIndex = tumorMarkdupBamIndex,
             outputPath = "./~{tumorName}.driverGeneCoverage.tsv"
+    }
+
+    # Tumor RNA
+    if (defined(tumorRnaReadgroups)) {
+        scatter (rnaReadgroup in select_first([tumorRnaReadgroups])) {
+            call star.Star as rnaMapping {
+                input:
+                    inputR1 = [rnaReadgroup.read1],
+                    inputR2 = [rnaReadgroup.read2],
+                    indexFiles = select_first([starIndex]),
+                    outFileNamePrefix = "./~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}.rna.",
+                    outSAMtype = "BAM Unsorted",
+                    readFilesCommand = "zcat",
+                    outBAMcompression = 0,
+                    outFilterScoreMinOverLread = 0.33,
+                    outFilterMatchNmin = 35,
+                    outFilterMatchNminOverLread = 0.33,
+                    twopassMode = noneString,
+                    outSAMattrRGline = ['"ID:~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}" "LB:~{rnaReadgroup.library}" "SM:~{tumorName}" "PL:illumina"'],
+                    outSAMunmapped = "Within",
+                    outSAMattributes = "All",
+                    outFilterMultimapNmax = 10,
+                    outFilterMismatchNmax = 3,
+                    limitOutSJcollapsed = 3000000,
+                    chimSegmentMin = 10,
+                    chimOutType = "WithinBAM SoftClip",
+                    chimJunctionOverhangMin = 10,
+                    chimSegmentReadGapMax = 3,
+                    chimScoreMin = 1,
+                    chimScoreDropMax = 30,
+                    chimScoreJunctionNonGTAG = 0,
+                    chimScoreSeparation = 1,
+                    alignSplicedMateMapLminOverLmate = 0.33,
+                    alignSplicedMateMapLmin = 35,
+                    alignSJstitchMismatchNmax = "5 -1 5 5",
+                    memory = "50GiB",
+                    runThreadN = 8
+            }
+        }
+
+        call sambamba.Markdup as rnaMarkdup {
+            input:
+                inputBams = rnaMapping.bamFile,
+                outputPath = "./~{tumorName}.rna.markdup.bam",
+                threads = 8,
+                memoryMb = 50000
+        }
     }
 
     # germline calling
@@ -327,11 +387,11 @@ workflow WGSinCancerDiagnostics {
         # use tumor as normal and normal as tumor
         input:
             tumorName = [normalName],
-            tumorBam = [normalMarkdup.outputBam],
-            tumorBamIndex = [normalMarkdup.outputBamIndex],
+            tumorBam = [normalMarkdupBam],
+            tumorBamIndex = [normalMarkdupBamIndex],
             referenceName = [tumorName],
-            referenceBam = [tumorMarkdup.outputBam],
-            referenceBamIndex = [tumorMarkdup.outputBamIndex],
+            referenceBam = [tumorMarkdupBam],
+            referenceBamIndex = [tumorMarkdupBamIndex],
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -391,11 +451,11 @@ workflow WGSinCancerDiagnostics {
     call hmftools.Sage as somaticVariants { #TODO multiple normals/tumors, tumor only mode simply doesn't give reference samples
         input:
             tumorName = [tumorName],
-            tumorBam = [tumorMarkdup.outputBam],
-            tumorBamIndex = [tumorMarkdup.outputBamIndex],
+            tumorBam = [tumorMarkdupBam],
+            tumorBamIndex = [tumorMarkdupBamIndex],
             referenceName = [normalName],
-            referenceBam = [normalMarkdup.outputBam],
-            referenceBamIndex = [normalMarkdup.outputBamIndex],
+            referenceBam = [normalMarkdupBam],
+            referenceBamIndex = [normalMarkdupBamIndex],
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -453,8 +513,8 @@ workflow WGSinCancerDiagnostics {
     call hmftools.SvPrep as svPrepTumor {
         input:
             sampleName = tumorName,
-            bamFile = tumorMarkdup.outputBam,
-            bamIndex = tumorMarkdup.outputBamIndex,
+            bamFile = tumorMarkdupBam,
+            bamIndex = tumorMarkdupBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -466,8 +526,8 @@ workflow WGSinCancerDiagnostics {
     call hmftools.SvPrep as svPrepNormal { #TODO don't run in tumor only mode
         input:
             sampleName = normalName,
-            bamFile = normalMarkdup.outputBam,
-            bamIndex = normalMarkdup.outputBamIndex,
+            bamFile = normalMarkdupBam,
+            bamIndex = normalMarkdupBamIndex,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -479,13 +539,13 @@ workflow WGSinCancerDiagnostics {
 
     call gridss.GridssSvPrep as structuralVariants { #TODO tumor only: don't provide normal
         input:
-            tumorBam = [tumorMarkdup.outputBam],
-            tumorBai = [tumorMarkdup.outputBamIndex],
+            tumorBam = [tumorMarkdupBam],
+            tumorBai = [tumorMarkdupBamIndex],
             tumorFilteredBam = [svPrepTumor.preppedBam],
             tumorFilteredBai = [svPrepTumor.preppedBamIndex],
             tumorLabel = [tumorName],
-            normalBam = normalMarkdup.outputBam,
-            normalBai = normalMarkdup.outputBamIndex,
+            normalBam = normalMarkdupBam,
+            normalBai = normalMarkdupBamIndex,
             normalFilteredBam = svPrepNormal.preppedBam,
             normalFilteredBai = svPrepNormal.preppedBamIndex,
             normalLabel = normalName,
@@ -500,8 +560,8 @@ workflow WGSinCancerDiagnostics {
             inputVcf = structuralVariants.vcf,
             inputVcfIndex = structuralVariants.vcfIndex,
             samples = [normalName, tumorName],
-            bamFiles = [normalMarkdup.outputBam, tumorMarkdup.outputBam],
-            bamIndexes = [normalMarkdup.outputBamIndex, tumorMarkdup.outputBamIndex],
+            bamFiles = [normalMarkdupBam, tumorMarkdupBam],
+            bamIndexes = [normalMarkdupBamIndex, tumorMarkdupBamIndex],
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
             referenceFastaDict = referenceFastaDict,
@@ -554,11 +614,11 @@ workflow WGSinCancerDiagnostics {
     call hmftools.Amber as amber {
         input:
             referenceName = normalName,
-            referenceBam = normalMarkdup.outputBam,
-            referenceBamIndex = normalMarkdup.outputBamIndex,
+            referenceBam = normalMarkdupBam,
+            referenceBamIndex = normalMarkdupBamIndex,
             tumorName = tumorName,
-            tumorBam = tumorMarkdup.outputBam,
-            tumorBamIndex = tumorMarkdup.outputBamIndex,
+            tumorBam = tumorMarkdupBam,
+            tumorBamIndex = tumorMarkdupBamIndex,
             loci = likelyHeterozygousLoci,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
@@ -570,11 +630,11 @@ workflow WGSinCancerDiagnostics {
     call hmftools.Cobalt as cobalt { #TODO tumor only mode: provide tumor only diploid bed
         input:
             referenceName = normalName,
-            referenceBam = normalMarkdup.outputBam,
-            referenceBamIndex = normalMarkdup.outputBamIndex,
+            referenceBam = normalMarkdupBam,
+            referenceBamIndex = normalMarkdupBamIndex,
             tumorName = tumorName,
-            tumorBam = tumorMarkdup.outputBam,
-            tumorBamIndex = tumorMarkdup.outputBamIndex,
+            tumorBam = tumorMarkdupBam,
+            tumorBamIndex = tumorMarkdupBamIndex,
             gcProfile = gcProfile,
             targetRegionsNormalisationTsv = targetRegionsNormalisationTsv,
             refGenomeFile = referenceFasta,
@@ -621,8 +681,8 @@ workflow WGSinCancerDiagnostics {
 
         call gridss.Virusbreakend as virusbreakend {
             input:
-                bam = tumorMarkdup.outputBam,
-                bamIndex = tumorMarkdup.outputBamIndex,
+                bam = tumorMarkdupBam,
+                bamIndex = tumorMarkdupBamIndex,
                 referenceFasta = referenceFasta,
                 referenceFastaDict = referenceFastaDict,
                 referenceFastaFai = referenceFastaFai,
@@ -693,8 +753,8 @@ workflow WGSinCancerDiagnostics {
 
         call samtools.View as tumorHLAbam {
             input:
-                inFile = tumorMarkdup.outputBam,
-                inFileIndex = tumorMarkdup.outputBamIndex,
+                inFile = tumorMarkdupBam,
+                inFileIndex = tumorMarkdupBamIndex,
                 outputFileName = "~{tumorName}_HLA.bam",
                 targetFile = hlaRegions,
                 uncompressedBamOutput = true,
@@ -704,8 +764,8 @@ workflow WGSinCancerDiagnostics {
 
         call samtools.View as normalHLAbam { #TODO don't run if tumor only
             input:
-                inFile = normalMarkdup.outputBam,
-                inFileIndex = normalMarkdup.outputBamIndex,
+                inFile = normalMarkdupBam,
+                inFileIndex = normalMarkdupBamIndex,
                 outputFileName = "~{normalName}_HLA.bam",
                 targetFile = hlaRegions,
                 uncompressedBamOutput = true,
@@ -813,6 +873,36 @@ workflow WGSinCancerDiagnostics {
                 transSpliceDataCsv = transSpliceDataCsv
         }
 
+        if (defined(rnaMarkdup.outputBam)) {
+            call hmftools.Isofox as isofox {
+                input:
+                    sampleName = tumorName,
+                    neoepitopeFile = neo.neoData,
+                    bamFile = select_first([rnaMarkdup.outputBam]),
+                    referenceFasta = referenceFasta,
+                    referenceFastaFai = referenceFastaDict,
+                    referenceFastaDict = referenceFastaDict,
+                    refGenomeVersion = if hg38 then "38" else "37",
+                    expCountsFile = select_first([isofoxExpCountsFile]),
+                    expGcRatiosFile = select_first([isofoxExpGcRatiosFile]),
+                    geneDataCsv = geneDataCsv,
+                    proteinFeaturesCsv = proteinFeaturesCsv,
+                    transExonDataCsv = transExonDataCsv,
+                    transSpliceDataCsv = transSpliceDataCsv
+            }
+
+            call hmftools.SageAppend as rnaVariants {
+                input:
+                    sampleName = "~{tumorName}_rna",
+                    bamFile = select_first([rnaMarkdup.outputBam]),
+                    referenceFasta = referenceFasta,
+                    referenceFastaFai = referenceFastaFai,
+                    referenceFastaDict = referenceFastaDict,
+                    sageVcf = purple.purpleSomaticVcf,
+                    outPath = "./~{tumorName}.rna.vcf.gz",
+            }
+        }
+
         call hmftools.NeoScorer as neoScorer {
             input:
                 sampleId = tumorName,
@@ -826,8 +916,10 @@ workflow WGSinCancerDiagnostics {
                 proteinFeaturesCsv = proteinFeaturesCsv,
                 transExonDataCsv = transExonDataCsv,
                 transSpliceDataCsv = transSpliceDataCsv,
-                cancerType = cancerType
-                #TODO RNA
+                cancerType = cancerType,
+                isofoxOutput = isofox.outputs,
+                rnaSomaticVcf = rnaVariants.vcf,
+                rnaSomaticVcfIndex = rnaVariants.index
         }
 
         # Reporting
@@ -945,8 +1037,8 @@ workflow WGSinCancerDiagnostics {
 
     call CallSpecificSites as specificSites {
         input:
-            bam = tumorMarkdup.outputBam,
-            bamIndex = tumorMarkdup.outputBamIndex,
+            bam = tumorMarkdupBam,
+            bamIndex = tumorMarkdupBamIndex,
             sites = specificCallSites,
             referenceFasta = referenceFasta,
             referenceFastaFai = referenceFastaFai,
@@ -1009,10 +1101,10 @@ workflow WGSinCancerDiagnostics {
         File multiqcReport = qcReport.multiqcReport
 
         # BAMs
-        File normalBam = normalMarkdup.outputBam
-        File normalBamIndex = normalMarkdup.outputBamIndex
-        File tumorBam = tumorMarkdup.outputBam
-        File tumorBamIndex = tumorMarkdup.outputBamIndex
+        File normalBam = normalMarkdupBam
+        File normalBamIndex = normalMarkdupBamIndex
+        File tumorBam = tumorMarkdupBam
+        File tumorBamIndex = tumorMarkdupBamIndex
 
         # SNVs/indels
         Array[File] sageGermlineOutputs = germlineVariants.outputs
@@ -1072,6 +1164,12 @@ workflow WGSinCancerDiagnostics {
         File? cupSummaryPng = cupGenerateReport.summaryPng
         File? cupFeaturesPng = cupGenerateReport.featuresPng
         File? cupReportPdf = cupGenerateReport.reportPdf
+
+        # RNA
+        File? rnaBam = rnaMarkdup.outputBam
+        Array[File]? isofoxOutput = isofox.outputs
+        File? rnaVariantsVcf = rnaVariants.vcf
+        File? rnaVariantsVcfIndex = rnaVariants.index
 
         # Neoepitopes
         File? neoData = neo.neoData
