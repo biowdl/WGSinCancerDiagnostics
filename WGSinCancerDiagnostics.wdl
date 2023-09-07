@@ -880,7 +880,7 @@ workflow WGSinCancerDiagnostics {
                     neoepitopeFile = neo.neoData,
                     bamFile = select_first([rnaMarkdup.outputBam]),
                     referenceFasta = referenceFasta,
-                    referenceFastaFai = referenceFastaDict,
+                    referenceFastaFai = referenceFastaFai,
                     referenceFastaDict = referenceFastaDict,
                     refGenomeVersion = if hg38 then "38" else "37",
                     expCountsFile = select_first([isofoxExpCountsFile]),
