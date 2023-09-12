@@ -343,7 +343,7 @@ workflow WGSinCancerDiagnostics {
                     inputR2 = [rnaReadgroup.read2],
                     indexFiles = select_first([starIndex]),
                     outFileNamePrefix = "./~{tumorName}-~{rnaReadgroup.library}-~{rnaReadgroup.id}.rna.",
-                    outSAMtype = "BAM Unsorted",
+                    outSAMtype = "BAM SortedByCoordinate",
                     readFilesCommand = "zcat",
                     outBAMcompression = 0,
                     outFilterScoreMinOverLread = 0.33,
@@ -878,6 +878,7 @@ workflow WGSinCancerDiagnostics {
                 input:
                     sampleName = tumorName,
                     bamFile = select_first([rnaMarkdup.outputBam]),
+                    bamIndex = select_first([rnaMarkdup.outputBamIndex]),
                     referenceFasta = referenceFasta,
                     referenceFastaFai = referenceFastaFai,
                     referenceFastaDict = referenceFastaDict,
@@ -895,6 +896,7 @@ workflow WGSinCancerDiagnostics {
                     sampleName = tumorName,
                     neoepitopeFile = neo.neoData,
                     bamFile = select_first([rnaMarkdup.outputBam]),
+                    bamIndex = select_first([rnaMarkdup.outputBamIndex]),
                     referenceFasta = referenceFasta,
                     referenceFastaFai = referenceFastaFai,
                     referenceFastaDict = referenceFastaDict,
@@ -1184,6 +1186,7 @@ workflow WGSinCancerDiagnostics {
 
         # RNA
         File? rnaBam = rnaMarkdup.outputBam
+        File? rnaBamIndex = rnaMarkdup.outputBamIndex
         Array[File]? isofoxOutput = isofoxNeoEpitopes.outputs
         File? rnaVariantsVcf = rnaVariants.vcf
         File? rnaVariantsVcfIndex = rnaVariants.index
