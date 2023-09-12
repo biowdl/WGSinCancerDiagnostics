@@ -877,6 +877,22 @@ workflow WGSinCancerDiagnostics {
             call hmftools.Isofox as isofox {
                 input:
                     sampleName = tumorName,
+                    bamFile = select_first([rnaMarkdup.outputBam]),
+                    referenceFasta = referenceFasta,
+                    referenceFastaFai = referenceFastaFai,
+                    referenceFastaDict = referenceFastaDict,
+                    refGenomeVersion = if hg38 then "38" else "37",
+                    expCountsFile = select_first([isofoxExpCountsFile]),
+                    expGcRatiosFile = select_first([isofoxExpGcRatiosFile]),
+                    geneDataCsv = geneDataCsv,
+                    proteinFeaturesCsv = proteinFeaturesCsv,
+                    transExonDataCsv = transExonDataCsv,
+                    transSpliceDataCsv = transSpliceDataCsv
+            }
+
+            call hmftools.IsofoxNeoEpitopes as isofoxNeoEpitopes {
+                input:
+                    sampleName = tumorName,
                     neoepitopeFile = neo.neoData,
                     bamFile = select_first([rnaMarkdup.outputBam]),
                     referenceFasta = referenceFasta,
@@ -885,6 +901,7 @@ workflow WGSinCancerDiagnostics {
                     refGenomeVersion = if hg38 then "38" else "37",
                     expCountsFile = select_first([isofoxExpCountsFile]),
                     expGcRatiosFile = select_first([isofoxExpGcRatiosFile]),
+                    isofoxOutput = isofox.outputs,
                     geneDataCsv = geneDataCsv,
                     proteinFeaturesCsv = proteinFeaturesCsv,
                     transExonDataCsv = transExonDataCsv,
@@ -917,7 +934,7 @@ workflow WGSinCancerDiagnostics {
                 transExonDataCsv = transExonDataCsv,
                 transSpliceDataCsv = transSpliceDataCsv,
                 cancerType = cancerType,
-                isofoxOutput = isofox.outputs,
+                isofoxOutput = isofoxNeoEpitopes.outputs,
                 rnaSomaticVcf = rnaVariants.vcf,
                 rnaSomaticVcfIndex = rnaVariants.index
         }
@@ -1167,7 +1184,7 @@ workflow WGSinCancerDiagnostics {
 
         # RNA
         File? rnaBam = rnaMarkdup.outputBam
-        Array[File]? isofoxOutput = isofox.outputs
+        Array[File]? isofoxOutput = isofoxNeoEpitopes.outputs
         File? rnaVariantsVcf = rnaVariants.vcf
         File? rnaVariantsVcfIndex = rnaVariants.index
 
