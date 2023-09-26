@@ -1236,7 +1236,7 @@ task CallSpecificSites {
 
     runtime {
         memory: "8GiB"
-        runtime_minutes: 15
+        time_minutes: 15
         docker: "quay.io/biocontainers/bcftools:1.16--hfe4b78e_1"
     }
 
